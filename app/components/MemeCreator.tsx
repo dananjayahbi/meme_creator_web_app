@@ -68,7 +68,23 @@ import { ProjectManager } from './ProjectManager';
 import { useMemeCreator } from '../hooks/useMemeCreator';
 import { exportToImage } from '../lib/utils';
 import { CROP_RATIOS } from '../lib/constants';
-import { CanvasSettings } from '../types';
+import { CanvasSettings, CanvasElement, MemeProject } from '../types';
+
+interface CropData {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  aspectRatio?: any;
+}
+
+interface ExportOptions {
+  format: 'png' | 'jpg' | 'webp' | 'svg';
+  quality: number;
+  width: number;
+  height: number;
+  scale: number;
+}
 
 const DRAWER_WIDTH = 300;
 
@@ -314,21 +330,35 @@ export function MemeCreator() {
           
           {activeLeftTab === 'tools' && (
             <ToolsPanel
+              selectedElement={selectedElement || undefined}
+              onUpdateElement={updateElement}
               onAddText={addTextElement}
               onAddImage={() => fileInputRef.current?.click()}
-              onCrop={() => setCropDialogOpen(true)}
-              zoom={zoom}
-              onZoomChange={setZoom}
+              onAddShape={(shape: string) => {
+                // TODO: Implement shape adding functionality
+                console.log('Add shape:', shape);
+              }}
+              onDeleteElement={() => selectedElement && deleteElement(selectedElement.id)}
+              onDuplicateElement={() => selectedElement && duplicateElement(selectedElement.id)}
+              onUndo={undo}
+              onRedo={redo}
+              canUndo={canUndo}
+              canRedo={canRedo}
             />
           )}
           
           {activeLeftTab === 'layers' && (
             <LayersPanel
               elements={currentProject?.elements || []}
-              selectedElement={selectedElement}
+              selectedElement={selectedElement || undefined}
               onSelectElement={selectElement}
+              onUpdateElement={updateElement}
               onDeleteElement={deleteElement}
               onDuplicateElement={duplicateElement}
+              onReorderElements={(elements: CanvasElement[]) => {
+                // TODO: Implement layer reordering
+                console.log('Reorder elements:', elements);
+              }}
             />
           )}
         </Box>
@@ -360,8 +390,8 @@ export function MemeCreator() {
         >
           <Box ref={canvasRef} sx={{ transform: `scale(${zoom})` }}>
             <Canvas
-              project={currentProject}
-              selectedElement={selectedElement}
+              project={currentProject || undefined}
+              selectedElement={selectedElement || undefined}
               onSelectElement={selectElement}
               onUpdateElement={updateElement}
               onDeleteElement={deleteElement}
@@ -405,7 +435,7 @@ export function MemeCreator() {
           
           {activeRightTab === 'properties' && (
             <PropertiesPanel
-              selectedElement={selectedElement}
+              selectedElement={selectedElement || undefined}
               canvasSettings={currentProject?.canvas || { width: 800, height: 600, backgroundColor: '#ffffff' }}
               onUpdateElement={updateElement}
               onUpdateCanvasSettings={handleCanvasSettingsChange}
@@ -414,10 +444,14 @@ export function MemeCreator() {
           
           {activeRightTab === 'projects' && (
             <ProjectManager
-              currentProject={currentProject}
-              onSave={handleSave}
-              onNew={createNewProject}
-              onExport={() => setExportDialogOpen(true)}
+              open={true}
+              onClose={() => setActiveRightTab('properties')}
+              onLoadProject={(project: MemeProject) => {
+                // TODO: Implement project loading
+                console.log('Load project:', project);
+              }}
+              onNewProject={createNewProject}
+              currentProject={currentProject || undefined}
             />
           )}
         </Box>
@@ -443,15 +477,24 @@ export function MemeCreator() {
       <CropDialog
         open={cropDialogOpen}
         onClose={() => setCropDialogOpen(false)}
-        canvasSettings={currentProject?.canvas}
-        onApply={handleCanvasSizeChange}
+        onCrop={(cropData: CropData) => {
+          // TODO: Implement crop functionality
+          console.log('Crop data:', cropData);
+        }}
+        currentWidth={currentProject?.canvas?.width || 800}
+        currentHeight={currentProject?.canvas?.height || 600}
       />
       
       <ExportDialog
         open={exportDialogOpen}
         onClose={() => setExportDialogOpen(false)}
-        onExport={handleExport}
-        project={currentProject}
+        onExport={async (exportOptions: ExportOptions) => {
+          // TODO: Implement export with options
+          console.log('Export options:', exportOptions);
+          await handleExport();
+        }}
+        canvasWidth={currentProject?.canvas?.width || 800}
+        canvasHeight={currentProject?.canvas?.height || 600}
       />
 
       {/* Hidden file input */}

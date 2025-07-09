@@ -151,28 +151,24 @@ export function PropertiesPanel({
         </AccordionSummary>
         <AccordionDetails>
           <Stack spacing={2}>
-            <Grid container spacing={2}>
-              <Grid item xs={6}>
-                <TextField
-                  label="Width"
-                  type="number"
-                  value={canvasSettings.width}
-                  onChange={(e) => handleCanvasUpdate('width', parseInt(e.target.value))}
-                  size="small"
-                  fullWidth
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <TextField
-                  label="Height"
-                  type="number"
-                  value={canvasSettings.height}
-                  onChange={(e) => handleCanvasUpdate('height', parseInt(e.target.value))}
-                  size="small"
-                  fullWidth
-                />
-              </Grid>
-            </Grid>
+            <Stack direction="row" spacing={2}>
+              <TextField
+                label="Width"
+                type="number"
+                value={canvasSettings.width}
+                onChange={(e) => handleCanvasUpdate('width', parseInt(e.target.value))}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Height"
+                type="number"
+                value={canvasSettings.height}
+                onChange={(e) => handleCanvasUpdate('height', parseInt(e.target.value))}
+                size="small"
+                fullWidth
+              />
+            </Stack>
 
             <FormControl size="small" fullWidth>
               <InputLabel>Aspect Ratio</InputLabel>
@@ -241,52 +237,44 @@ export function PropertiesPanel({
               </Typography>
 
               {/* Position */}
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <TextField
-                    label="X Position"
-                    type="number"
-                    value={Math.round(selectedElement.x)}
-                    onChange={(e) => handleElementUpdate('x', parseInt(e.target.value))}
-                    size="small"
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={6}>
-                  <TextField
-                    label="Y Position"
-                    type="number"
-                    value={Math.round(selectedElement.y)}
-                    onChange={(e) => handleElementUpdate('y', parseInt(e.target.value))}
-                    size="small"
-                    fullWidth
-                  />
-                </Grid>
-              </Grid>
+              <Stack direction="row" spacing={2}>
+                <TextField
+                  label="X Position"
+                  type="number"
+                  value={Math.round(selectedElement.x)}
+                  onChange={(e) => handleElementUpdate('x', parseInt(e.target.value))}
+                  size="small"
+                  fullWidth
+                />
+                <TextField
+                  label="Y Position"
+                  type="number"
+                  value={Math.round(selectedElement.y)}
+                  onChange={(e) => handleElementUpdate('y', parseInt(e.target.value))}
+                  size="small"
+                  fullWidth
+                />
+              </Stack>
 
               {/* Size */}
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <TextField
-                    label="Width"
-                    type="number"
-                    value={Math.round(selectedElement.width)}
-                    onChange={(e) => handleElementUpdate('width', parseInt(e.target.value))}
-                    size="small"
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={6}>
-                  <TextField
-                    label="Height"
-                    type="number"
-                    value={Math.round(selectedElement.height)}
-                    onChange={(e) => handleElementUpdate('height', parseInt(e.target.value))}
-                    size="small"
-                    fullWidth
-                  />
-                </Grid>
-              </Grid>
+              <Stack direction="row" spacing={2}>
+                <TextField
+                  label="Width"
+                  type="number"
+                  value={Math.round(selectedElement.width)}
+                  onChange={(e) => handleElementUpdate('width', parseInt(e.target.value))}
+                  size="small"
+                  fullWidth
+                />
+                <TextField
+                  label="Height"
+                  type="number"
+                  value={Math.round(selectedElement.height)}
+                  onChange={(e) => handleElementUpdate('height', parseInt(e.target.value))}
+                  size="small"
+                  fullWidth
+                />
+              </Stack>
 
               {/* Quick Actions */}
               <Stack direction="row" spacing={1}>

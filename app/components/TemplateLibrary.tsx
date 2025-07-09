@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import {
   Box,
-  Grid,
   Card,
   CardMedia,
   CardContent,
@@ -281,20 +280,20 @@ export function TemplateLibrary({
       </Box>
 
       {/* Templates Grid */}
-      <Grid container spacing={2}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
         {filteredTemplates.map((template) => (
-          <Grid item xs={12} sm={6} key={template.id}>
-            <Card
-              sx={{
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: 4,
-                },
-              }}
-              onClick={() => handleTemplateClick(template)}
-            >
+          <Card
+            key={template.id}
+            sx={{
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: 4,
+              },
+            }}
+            onClick={() => handleTemplateClick(template)}
+          >
               <CardMedia
                 component="img"
                 height="140"
@@ -327,9 +326,8 @@ export function TemplateLibrary({
                 </Typography>
               </CardContent>
             </Card>
-          </Grid>
         ))}
-      </Grid>
+      </Box>
 
       {/* Empty State */}
       {filteredTemplates.length === 0 && (

@@ -264,7 +264,7 @@ export function LayersPanel({
       <Paper>
         <List dense>
           {elements.map((element, index) => (
-            <ListItem
+            <ListItemButton
               key={element.id}
               selected={selectedElement?.id === element.id}
               onClick={() => onSelectElement(element)}
@@ -366,7 +366,7 @@ export function LayersPanel({
                   </IconButton>
                 </Stack>
               </ListItemSecondaryAction>
-            </ListItem>
+            </ListItemButton>
           ))}
         </List>
       </Paper>
