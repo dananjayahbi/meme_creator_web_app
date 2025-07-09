@@ -26,7 +26,10 @@ interface UseMemeCreatorReturn {
   // Template management
   loadTemplate: (template: MemeTemplate) => void;
   saveAsTemplate: (name: string) => Promise<void>;
-  deleteTemplate: (templateId: string) => void;
+  saveTemplate: (template: MemeTemplate) => Promise<void>;
+  uploadTemplate: (file: File, name: string, width: number, height: number) => Promise<MemeTemplate>;
+  deleteTemplate: (templateId: string) => Promise<void>;
+  refreshTemplates: () => Promise<void>;
   
   // Element management
   addTextElement: () => void;
@@ -63,17 +66,24 @@ export function useMemeCreator(): UseMemeCreatorReturn {
 
   // Load templates on mount
   useEffect(() => {
-    try {
-      const loadedTemplates = storageService.getTemplates();
-      setTemplates(loadedTemplates);
-      
-      // Create default project if none exists
-      if (!currentProject) {
-        createNewProject();
+    const loadTemplates = async () => {
+      try {
+        setIsLoading(true);
+        const loadedTemplates = await storageService.getTemplates();
+        setTemplates(loadedTemplates);
+        
+        // Create default project if none exists
+        if (!currentProject) {
+          createNewProject();
+        }
+      } catch (err) {
+        setError('Failed to load templates');
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      setError('Failed to load templates');
-    }
+    };
+    
+    loadTemplates();
   }, []);
 
   // Add to history
@@ -247,10 +257,34 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     }
   }, [currentProject]);
 
-  // Delete template
-  const deleteTemplate = useCallback((templateId: string) => {
+  // Save template directly
+  const saveTemplate = useCallback(async (template: MemeTemplate) => {
     try {
-      storageService.deleteTemplate(templateId);
+      await storageService.saveTemplate(template);
+      setTemplates(prev => [...prev, template]);
+    } catch (error) {
+      console.error('Failed to save template:', error);
+      setError('Failed to save template');
+    }
+  }, []);
+
+  // Upload template
+  const uploadTemplate = useCallback(async (file: File, name: string, width: number, height: number): Promise<MemeTemplate> => {
+    try {
+      const template = await storageService.uploadTemplate(file, name, width, height);
+      setTemplates(prev => [...prev, template]);
+      return template;
+    } catch (error) {
+      console.error('Failed to upload template:', error);
+      setError('Failed to upload template');
+      throw error;
+    }
+  }, []);
+
+  // Delete template
+  const deleteTemplate = useCallback(async (templateId: string) => {
+    try {
+      await storageService.deleteTemplate(templateId);
       setTemplates(prev => prev.filter(t => t.id !== templateId));
     } catch (err) {
       setError('Failed to delete template');
@@ -477,6 +511,19 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     return currentProject;
   }, [currentProject]);
 
+  // Refresh templates
+  const refreshTemplates = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const loadedTemplates = await storageService.getTemplates();
+      setTemplates(loadedTemplates);
+    } catch (err) {
+      setError('Failed to refresh templates');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   return {
     currentProject,
     templates,
@@ -495,7 +542,10 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     
     loadTemplate,
     saveAsTemplate,
+    saveTemplate,
+    uploadTemplate,
     deleteTemplate,
+    refreshTemplates,
     
     addTextElement,
     addImageElement,

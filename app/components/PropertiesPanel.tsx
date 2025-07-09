@@ -119,9 +119,9 @@ export function PropertiesPanel({
   const applyAspectRatio = (ratio: number, width: number, height: number) => {
     if (ratio === 0) return; // Custom ratio
     
-    const newHeight = width / ratio;
+    // Use the predefined width and height from the ratio
     handleCanvasUpdate('width', width);
-    handleCanvasUpdate('height', newHeight);
+    handleCanvasUpdate('height', height);
   };
 
   const centerElement = () => {
@@ -155,16 +155,16 @@ export function PropertiesPanel({
               <TextField
                 label="Width"
                 type="number"
-                value={canvasSettings.width}
-                onChange={(e) => handleCanvasUpdate('width', parseInt(e.target.value))}
+                value={canvasSettings.width || 800}
+                onChange={(e) => handleCanvasUpdate('width', parseInt(e.target.value) || 800)}
                 size="small"
                 fullWidth
               />
               <TextField
                 label="Height"
                 type="number"
-                value={canvasSettings.height}
-                onChange={(e) => handleCanvasUpdate('height', parseInt(e.target.value))}
+                value={canvasSettings.height || 600}
+                onChange={(e) => handleCanvasUpdate('height', parseInt(e.target.value) || 600)}
                 size="small"
                 fullWidth
               />
@@ -243,16 +243,16 @@ export function PropertiesPanel({
                 <TextField
                   label="X Position"
                   type="number"
-                  value={Math.round(selectedElement.x)}
-                  onChange={(e) => handleElementUpdate('x', parseInt(e.target.value))}
+                  value={Math.round(selectedElement.x || 0)}
+                  onChange={(e) => handleElementUpdate('x', parseInt(e.target.value) || 0)}
                   size="small"
                   fullWidth
                 />
                 <TextField
                   label="Y Position"
                   type="number"
-                  value={Math.round(selectedElement.y)}
-                  onChange={(e) => handleElementUpdate('y', parseInt(e.target.value))}
+                  value={Math.round(selectedElement.y || 0)}
+                  onChange={(e) => handleElementUpdate('y', parseInt(e.target.value) || 0)}
                   size="small"
                   fullWidth
                 />
@@ -263,16 +263,16 @@ export function PropertiesPanel({
                 <TextField
                   label="Width"
                   type="number"
-                  value={Math.round(selectedElement.width)}
-                  onChange={(e) => handleElementUpdate('width', parseInt(e.target.value))}
+                  value={Math.round(selectedElement.width || 100)}
+                  onChange={(e) => handleElementUpdate('width', parseInt(e.target.value) || 100)}
                   size="small"
                   fullWidth
                 />
                 <TextField
                   label="Height"
                   type="number"
-                  value={Math.round(selectedElement.height)}
-                  onChange={(e) => handleElementUpdate('height', parseInt(e.target.value))}
+                  value={Math.round(selectedElement.height || 50)}
+                  onChange={(e) => handleElementUpdate('height', parseInt(e.target.value) || 50)}
                   size="small"
                   fullWidth
                 />
@@ -358,7 +358,7 @@ export function PropertiesPanel({
                     label="Font Size"
                     type="number"
                     value={selectedElement.data?.fontSize || 16}
-                    onChange={(e) => handleElementDataUpdate('fontSize', parseInt(e.target.value))}
+                    onChange={(e) => handleElementDataUpdate('fontSize', parseInt(e.target.value) || 16)}
                     size="small"
                     fullWidth
                   />

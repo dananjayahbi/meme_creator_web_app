@@ -58,7 +58,7 @@ import {
   FullscreenExit as ExitFullscreenIcon,
 } from '@mui/icons-material';
 import { Canvas } from './Canvas';
-import { TemplateLibrary } from './TemplateLibrary';
+import { TemplateManager } from './TemplateManager';
 import { ToolsPanel } from './ToolsPanel';
 import { LayersPanel } from './LayersPanel';
 import { PropertiesPanel } from './PropertiesPanel';
@@ -99,7 +99,10 @@ export function MemeCreator() {
     saveProject,
     loadTemplate,
     saveAsTemplate,
+    saveTemplate,
+    uploadTemplate,
     deleteTemplate,
+    refreshTemplates,
     addTextElement,
     addImageElement,
     addShapeElement,
@@ -118,8 +121,9 @@ export function MemeCreator() {
 
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(true);
   const [rightDrawerOpen, setRightDrawerOpen] = useState(true);
-  const [activeLeftTab, setActiveLeftTab] = useState('templates');
+  const [activeLeftTab, setActiveLeftTab] = useState('tools');
   const [activeRightTab, setActiveRightTab] = useState('properties');
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [projectManagerOpen, setProjectManagerOpen] = useState(false);
@@ -226,7 +230,6 @@ export function MemeCreator() {
   ];
 
   const leftPanelTabs = [
-    { id: 'templates', label: 'Templates', icon: <ImageIcon /> },
     { id: 'tools', label: 'Tools', icon: <PaletteIcon /> },
     { id: 'layers', label: 'Layers', icon: <LayersIcon /> },
   ];
@@ -235,6 +238,13 @@ export function MemeCreator() {
     { id: 'properties', label: 'Properties', icon: <SettingsIcon /> },
     { id: 'projects', label: 'Projects', icon: <EditIcon /> },
   ];
+
+  // Refresh templates when template manager opens
+  useEffect(() => {
+    if (templateManagerOpen) {
+      refreshTemplates();
+    }
+  }, [templateManagerOpen, refreshTemplates]);
 
   if (isLoading) {
     return (
@@ -262,6 +272,18 @@ export function MemeCreator() {
           </Typography>
 
           <Stack direction="row" spacing={1}>
+            <Button
+              color="inherit"
+              startIcon={<ImageIcon />}
+              onClick={() => setTemplateManagerOpen(true)}
+              sx={{ 
+                '& .MuiButton-startIcon': {
+                  marginRight: 1
+                }
+              }}
+            >
+              Templates
+            </Button>
             <Button
               color="inherit"
               startIcon={<UndoIcon />}
@@ -335,7 +357,13 @@ export function MemeCreator() {
                 size="small"
                 startIcon={tab.icon}
                 onClick={() => setActiveLeftTab(tab.id)}
-                sx={{ flex: 1 }}
+                sx={{ 
+                  flex: 1, 
+                  minWidth: 0,
+                  '& .MuiButton-startIcon': {
+                    marginRight: 0.5
+                  }
+                }}
               >
                 {tab.label}
               </Button>
@@ -343,15 +371,6 @@ export function MemeCreator() {
           </Stack>
           
           <Divider sx={{ mb: 2 }} />
-          
-          {activeLeftTab === 'templates' && (
-            <TemplateLibrary
-              templates={templates}
-              onSelectTemplate={handleTemplateSelect}
-              onSaveTemplate={handleTemplateSave}
-              onDeleteTemplate={handleTemplateDelete}
-            />
-          )}
           
           {activeLeftTab === 'tools' && (
             <ToolsPanel
@@ -547,6 +566,17 @@ export function MemeCreator() {
           {snackbarMessage}
         </Alert>
       </Snackbar>
+
+      {/* Template Manager */}
+      <TemplateManager
+        open={templateManagerOpen}
+        onClose={() => setTemplateManagerOpen(false)}
+        templates={templates}
+        onSelectTemplate={handleTemplateSelect}
+        onUploadTemplate={uploadTemplate}
+        onDeleteTemplate={deleteTemplate}
+        isLoading={isLoading}
+      />
 
       {/* Error Display */}
       {error && (
