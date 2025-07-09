@@ -289,17 +289,17 @@ export function LayersPanel({
               <ListItemText
                 primary={getElementName(element)}
                 secondary={
-                  <Stack direction="row" spacing={1} alignItems="center">
+                  <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Chip
                       label={element.type}
                       size="small"
                       variant="outlined"
                       sx={{ fontSize: '0.75rem', height: 20 }}
                     />
-                    <Typography variant="caption">
+                    <Typography variant="caption" component="span">
                       {Math.round(element.x)}, {Math.round(element.y)}
                     </Typography>
-                  </Stack>
+                  </Box>
                 }
               />
               

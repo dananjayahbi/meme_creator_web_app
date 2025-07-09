@@ -43,7 +43,7 @@ const DEFAULT_TEMPLATES: MemeTemplate[] = [
   {
     id: '1',
     name: 'Distracted Boyfriend',
-    imageUrl: '/api/placeholder/400/300',
+    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjMzMzIi8+Cjx0ZXh0IHg9IjIwMCIgeT0iMTUwIiBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiPkRpc3RyYWN0ZWQgQm95ZnJpZW5kPC90ZXh0Pgo8L3N2Zz4=',
     width: 400,
     height: 300,
     textBoxes: [
@@ -91,7 +91,7 @@ const DEFAULT_TEMPLATES: MemeTemplate[] = [
   {
     id: '2',
     name: 'Drake Pointing',
-    imageUrl: '/api/placeholder/400/400',
+    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjQwMCIgdmlld0JveD0iMCAwIDQwMCA0MDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIiBmaWxsPSIjNDQ0Ii8+Cjx0ZXh0IHg9IjIwMCIgeT0iMjAwIiBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiPkRyYWtlIFBvaW50aW5nPC90ZXh0Pgo8L3N2Zz4=',
     width: 400,
     height: 400,
     textBoxes: [
@@ -139,7 +139,7 @@ const DEFAULT_TEMPLATES: MemeTemplate[] = [
   {
     id: '3',
     name: 'This is Fine',
-    imageUrl: '/api/placeholder/500/300',
+    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDUwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI1MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjNTU1Ii8+Cjx0ZXh0IHg9IjI1MCIgeT0iMTUwIiBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiPlRoaXMgaXMgRmluZTwvdGV4dD4KPC9zdmc+',
     width: 500,
     height: 300,
     textBoxes: [
@@ -179,6 +179,7 @@ export function TemplateLibrary({
   const [editingTemplate, setEditingTemplate] = useState<MemeTemplate | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<MemeTemplate | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const allTemplates = [...DEFAULT_TEMPLATES, ...templates];
 
@@ -186,7 +187,7 @@ export function TemplateLibrary({
     template.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const categories = ['all', 'popular', 'recent', 'custom'];
+  const categories = ['all', 'recent', 'custom'];
 
   const handleTemplateClick = (template: MemeTemplate) => {
     onSelectTemplate(template);
@@ -251,6 +252,44 @@ export function TemplateLibrary({
     setCreateDialogOpen(true);
   };
 
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        
+        // Create a new template from the uploaded image
+        const newTemplate: MemeTemplate = {
+          id: generateId(),
+          name: file.name.split('.')[0] || 'Uploaded Template',
+          imageUrl: result,
+          width: 400, // Default width, will be updated when image loads
+          height: 300, // Default height, will be updated when image loads
+          textBoxes: [],
+          createdAt: new Date(),
+        };
+
+        // Get actual image dimensions
+        const img = new Image();
+        img.onload = () => {
+          newTemplate.width = img.width;
+          newTemplate.height = img.height;
+          
+          if (onSaveTemplate) {
+            onSaveTemplate(newTemplate);
+          }
+        };
+        img.src = result;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
     <Box>
       {/* Search and Filter */}
@@ -266,7 +305,7 @@ export function TemplateLibrary({
           }}
         />
         
-        <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+        <Stack direction="row" spacing={1} sx={{ mt: 1, mb: 1 }}>
           {categories.map((category) => (
             <Chip
               key={category}
@@ -276,6 +315,26 @@ export function TemplateLibrary({
               onClick={() => setSelectedCategory(category)}
             />
           ))}
+        </Stack>
+
+        {/* Upload Actions */}
+        <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<UploadIcon />}
+            onClick={handleUploadClick}
+          >
+            Upload Template
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={handleCreateNew}
+          >
+            Create New
+          </Button>
         </Stack>
       </Box>
 
@@ -376,6 +435,14 @@ export function TemplateLibrary({
         }}
         onSave={handleSave}
         initialData={editingTemplate}
+      />
+      {/* Hidden file input for image upload */}
+      <input
+        type="file"
+        accept="image/*"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        onChange={handleImageUpload}
       />
     </Box>
   );

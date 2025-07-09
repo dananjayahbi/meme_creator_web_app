@@ -233,7 +233,9 @@ export function PropertiesPanel({
           <AccordionDetails>
             <Stack spacing={2}>
               <Typography variant="body2" color="text.secondary">
-                {selectedElement.type.charAt(0).toUpperCase() + selectedElement.type.slice(1)} Element
+                {selectedElement?.type ? 
+                  selectedElement.type.charAt(0).toUpperCase() + selectedElement.type.slice(1) : 
+                  'Element'} Element
               </Typography>
 
               {/* Position */}

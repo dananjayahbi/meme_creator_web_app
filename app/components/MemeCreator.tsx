@@ -68,7 +68,7 @@ import { ProjectManager } from './ProjectManager';
 import { useMemeCreator } from '../hooks/useMemeCreator';
 import { exportToImage } from '../lib/utils';
 import { CROP_RATIOS } from '../lib/constants';
-import { CanvasSettings, CanvasElement, MemeProject } from '../types';
+import { CanvasSettings, CanvasElement, MemeProject, MemeTemplate } from '../types';
 
 interface CropData {
   x: number;
@@ -98,8 +98,11 @@ export function MemeCreator() {
     createNewProject,
     saveProject,
     loadTemplate,
+    saveAsTemplate,
+    deleteTemplate,
     addTextElement,
     addImageElement,
+    addShapeElement,
     updateElement,
     deleteElement,
     selectElement,
@@ -171,6 +174,26 @@ export function MemeCreator() {
   const handleTemplateSelect = (template: any) => {
     loadTemplate(template);
     showSnackbar(`Template "${template.name}" loaded`, 'success');
+  };
+
+  const handleTemplateSave = async (template: MemeTemplate) => {
+    try {
+      // Save the template using the storage service directly
+      const { storageService } = await import('../lib/storage');
+      await storageService.saveTemplate(template);
+      showSnackbar(`Template "${template.name}" saved successfully!`, 'success');
+    } catch (error) {
+      showSnackbar('Error saving template', 'error');
+    }
+  };
+
+  const handleTemplateDelete = async (templateId: string) => {
+    try {
+      await deleteTemplate(templateId);
+      showSnackbar('Template deleted successfully!', 'success');
+    } catch (error) {
+      showSnackbar('Error deleting template', 'error');
+    }
   };
 
   const handleCanvasSizeChange = (width: number, height: number) => {
@@ -325,6 +348,8 @@ export function MemeCreator() {
             <TemplateLibrary
               templates={templates}
               onSelectTemplate={handleTemplateSelect}
+              onSaveTemplate={handleTemplateSave}
+              onDeleteTemplate={handleTemplateDelete}
             />
           )}
           
@@ -334,10 +359,7 @@ export function MemeCreator() {
               onUpdateElement={updateElement}
               onAddText={addTextElement}
               onAddImage={() => fileInputRef.current?.click()}
-              onAddShape={(shape: string) => {
-                // TODO: Implement shape adding functionality
-                console.log('Add shape:', shape);
-              }}
+              onAddShape={addShapeElement}
               onDeleteElement={() => selectedElement && deleteElement(selectedElement.id)}
               onDuplicateElement={() => selectedElement && duplicateElement(selectedElement.id)}
               onUndo={undo}
@@ -478,8 +500,12 @@ export function MemeCreator() {
         open={cropDialogOpen}
         onClose={() => setCropDialogOpen(false)}
         onCrop={(cropData: CropData) => {
-          // TODO: Implement crop functionality
-          console.log('Crop data:', cropData);
+          if (cropData.aspectRatio) {
+            const { width, height } = cropData.aspectRatio;
+            setCanvasSize(width, height);
+            showSnackbar('Canvas size updated to ' + width + 'x' + height, 'success');
+          }
+          setCropDialogOpen(false);
         }}
         currentWidth={currentProject?.canvas?.width || 800}
         currentHeight={currentProject?.canvas?.height || 600}
