@@ -51,6 +51,12 @@ export function Canvas({
     e.preventDefault();
     e.stopPropagation();
     
+    // Don't allow interaction with locked elements
+    const isLocked = element.data?.locked === true;
+    if (isLocked) {
+      return;
+    }
+    
     onSelectElement(element);
     
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -69,6 +75,12 @@ export function Canvas({
   const handleResizeStart = (e: React.MouseEvent, element: CanvasElement, handle: string) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    // Don't allow resizing locked elements
+    const isLocked = element.data?.locked === true;
+    if (isLocked) {
+      return;
+    }
     
     onSelectElement(element);
     
@@ -193,6 +205,13 @@ export function Canvas({
 
   const renderElement = (element: CanvasElement) => {
     const isSelected = selectedElement?.id === element.id;
+    const isVisible = element.data?.visible !== false; // Default to visible if not specified
+    const isLocked = element.data?.locked === true;
+    
+    // Don't render if element is not visible
+    if (!isVisible) {
+      return null;
+    }
     
     const elementStyle = {
       position: 'absolute' as const,
@@ -202,43 +221,166 @@ export function Canvas({
       height: element.height,
       transform: `rotate(${element.rotation}deg)`,
       opacity: element.opacity,
-      cursor: 'move',
+      cursor: isLocked ? 'not-allowed' : 'move',
       border: isSelected ? '2px solid #1976d2' : '1px solid transparent',
       borderRadius: '4px',
       zIndex: element.type === 'text' ? 2 : 1,
+      pointerEvents: isLocked ? 'none' : 'auto',
     };
 
     if (element.type === 'text') {
       return (
-        <Box
-          key={element.id}
-          sx={elementStyle}
-          onMouseDown={(e) => handleMouseDown(e, element)}
-        >
-          <Typography
-            sx={{
-              fontSize: element.data.fontSize || 32,
-              fontFamily: element.data.fontFamily || 'Arial',
-              color: element.data.color || '#000000',
-              backgroundColor: element.data.backgroundColor || 'transparent',
-              textAlign: element.data.textAlign || 'center',
-              fontWeight: element.data.fontWeight || 'bold',
-              fontStyle: element.data.fontStyle || 'normal',
-              textShadow: element.data.textShadow || 'none',
-              padding: '4px 8px',
-              border: element.data.borderWidth ? `${element.data.borderWidth}px solid ${element.data.borderColor || '#000000'}` : 'none',
-              borderRadius: element.data.borderRadius || '0px',
-              wordWrap: 'break-word',
-              whiteSpace: 'pre-wrap',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: element.data.textAlign || 'center',
-              userSelect: 'none',
-            }}
+        <Box key={element.id}>
+          <Box
+            sx={elementStyle}
+            onMouseDown={(e) => handleMouseDown(e, element)}
           >
-            {element.data.text || 'Double click to edit'}
-          </Typography>
+            <Typography
+              sx={{
+                fontSize: element.data.fontSize || 32,
+                fontFamily: element.data.fontFamily || 'Arial',
+                color: element.data.color || '#000000',
+                backgroundColor: element.data.backgroundColor || 'transparent',
+                textAlign: element.data.textAlign || 'center',
+                fontWeight: element.data.fontWeight || 'bold',
+                fontStyle: element.data.fontStyle || 'normal',
+                textShadow: element.data.textShadow || 'none',
+                padding: '4px 8px',
+                border: element.data.borderWidth ? `${element.data.borderWidth}px solid ${element.data.borderColor || '#000000'}` : 'none',
+                borderRadius: element.data.borderRadius || '0px',
+                wordWrap: 'break-word',
+                whiteSpace: 'pre-wrap',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: element.data.textAlign || 'center',
+                userSelect: 'none',
+              }}
+            >
+              {element.data.text || 'Double click to edit'}
+            </Typography>
+          </Box>
+          
+          {/* Resize handles for selected text */}
+          {isSelected && !isLocked && (
+            <>
+              {/* Corner handles */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'nw-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'nw')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'ne-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'ne')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'sw-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'sw')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'se-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'se')}
+              />
+              
+              {/* Edge handles */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width / 2 - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'n-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'n')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width / 2 - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 's-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 's')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y + element.height / 2 - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'w-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'w')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y + element.height / 2 - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'e-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'e')}
+              />
+            </>
+          )}
         </Box>
       );
     }
@@ -265,7 +407,7 @@ export function Canvas({
           </Box>
           
           {/* Resize handles for selected image */}
-          {isSelected && element.data.resizable && (
+          {isSelected && !isLocked && element.data.resizable && (
             <>
               {/* Corner handles */}
               <Box
@@ -390,16 +532,138 @@ export function Canvas({
 
     if (element.type === 'shape') {
       return (
-        <Box
-          key={element.id}
-          sx={{
-            ...elementStyle,
-            backgroundColor: element.data.backgroundColor || '#1976d2',
-            borderRadius: element.data.borderRadius || '0px',
-            border: element.data.borderWidth ? `${element.data.borderWidth}px solid ${element.data.borderColor || '#000000'}` : 'none',
-          }}
-          onMouseDown={(e) => handleMouseDown(e, element)}
-        />
+        <Box key={element.id}>
+          <Box
+            sx={{
+              ...elementStyle,
+              backgroundColor: element.data.backgroundColor || '#1976d2',
+              borderRadius: element.data.borderRadius || '0px',
+              border: element.data.borderWidth ? `${element.data.borderWidth}px solid ${element.data.borderColor || '#000000'}` : 'none',
+            }}
+            onMouseDown={(e) => handleMouseDown(e, element)}
+          />
+          
+          {/* Resize handles for selected shape */}
+          {isSelected && !isLocked && (
+            <>
+              {/* Corner handles */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'nw-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'nw')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'ne-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'ne')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'sw-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'sw')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'se-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'se')}
+              />
+              
+              {/* Edge handles */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width / 2 - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'n-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'n')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width / 2 - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 's-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 's')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y + element.height / 2 - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'w-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'w')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y + element.height / 2 - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'e-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'e')}
+              />
+            </>
+          )}
+        </Box>
       );
     }
 
@@ -462,7 +726,9 @@ export function Canvas({
               top: selectedElement.y - 4,
               width: selectedElement.width + 8,
               height: selectedElement.height + 8,
-              border: '2px solid #1976d2',
+              border: selectedElement.data?.locked === true 
+                ? '2px solid #ff9800' 
+                : '2px solid #1976d2',
               borderRadius: '6px',
               pointerEvents: 'none',
               zIndex: 1000,
