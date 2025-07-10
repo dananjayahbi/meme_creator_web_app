@@ -65,10 +65,11 @@ export function TemplateManager({
   const [selectedTemplate, setSelectedTemplate] = useState<MemeTemplate | null>(null);
 
   // Upload dialog state
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadName, setUploadName] = useState('');
   const [uploadWidth, setUploadWidth] = useState(800);
   const [uploadHeight, setUploadHeight] = useState(600);
+  const [currentUploadIndex, setCurrentUploadIndex] = useState(0);
 
   const categories = [
     { id: 'all', label: 'All Templates' },
@@ -85,33 +86,58 @@ export function TemplateManager({
   });
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setUploadFile(file);
-      setUploadName(file.name.replace(/\.[^/.]+$/, ''));
+    const files = Array.from(event.target.files || []);
+    if (files.length > 0) {
+      setUploadFiles(files);
+      setCurrentUploadIndex(0);
       
-      // Get image dimensions automatically
+      // Auto-detect dimensions of the first image
+      const firstFile = files[0];
+      setUploadName(firstFile.name.replace(/\.[^/.]+$/, ''));
+      
+      // Get image dimensions
       const img = new Image();
       img.onload = () => {
         setUploadWidth(img.naturalWidth);
         setUploadHeight(img.naturalHeight);
       };
-      img.src = URL.createObjectURL(file);
+      img.src = URL.createObjectURL(firstFile);
       
       setShowUploadDialog(true);
     }
   };
 
   const handleUpload = async () => {
-    if (!uploadFile) return;
+    if (uploadFiles.length === 0) return;
 
     try {
       setUploadLoading(true);
       setUploadError(null);
-      await onUploadTemplate(uploadFile, uploadName, uploadWidth, uploadHeight);
-      setShowUploadDialog(false);
-      setUploadFile(null);
-      setUploadName('');
+      
+      const currentFile = uploadFiles[currentUploadIndex];
+      await onUploadTemplate(currentFile, uploadName, uploadWidth, uploadHeight);
+      
+      // Check if there are more files to upload
+      if (currentUploadIndex < uploadFiles.length - 1) {
+        const nextIndex = currentUploadIndex + 1;
+        const nextFile = uploadFiles[nextIndex];
+        setCurrentUploadIndex(nextIndex);
+        setUploadName(nextFile.name.replace(/\.[^/.]+$/, ''));
+        
+        // Get dimensions for next file
+        const img = new Image();
+        img.onload = () => {
+          setUploadWidth(img.naturalWidth);
+          setUploadHeight(img.naturalHeight);
+        };
+        img.src = URL.createObjectURL(nextFile);
+      } else {
+        // All files uploaded
+        setShowUploadDialog(false);
+        setUploadFiles([]);
+        setUploadName('');
+        setCurrentUploadIndex(0);
+      }
     } catch (error) {
       setUploadError('Failed to upload template. Please try again.');
     } finally {
@@ -205,10 +231,11 @@ export function TemplateManager({
                 startIcon={<UploadIcon />}
                 component="label"
               >
-                Upload
+                Upload Templates
                 <input
                   type="file"
                   hidden
+                  multiple
                   accept="image/*"
                   onChange={handleFileSelect}
                 />
@@ -342,10 +369,10 @@ export function TemplateManager({
               />
             </Stack>
             
-            {uploadFile && (
+            {uploadFiles.length > 0 && (
               <Box>
                 <Typography variant="body2" color="text.secondary">
-                  Selected file: {uploadFile.name}
+                  Uploading {currentUploadIndex + 1} of {uploadFiles.length}: {uploadFiles[currentUploadIndex]?.name}
                 </Typography>
               </Box>
             )}
@@ -356,9 +383,9 @@ export function TemplateManager({
           <Button
             onClick={handleUpload}
             variant="contained"
-            disabled={!uploadFile || !uploadName || uploadLoading}
+            disabled={uploadFiles.length === 0 || !uploadName || uploadLoading}
           >
-            {uploadLoading ? <CircularProgress size={20} /> : 'Upload'}
+            {uploadLoading ? <CircularProgress size={20} /> : (uploadFiles.length > 1 ? 'Upload Next' : 'Upload')}
           </Button>
         </DialogActions>
       </Dialog>

@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, readdir, unlink, readFile } from 'fs/promises';
+import { writeFile, readdir, unlink, readFile, mkdir } from 'fs/promises';
 import { join } from 'path';
+import { existsSync } from 'fs';
 import { generateId } from '../../lib/utils';
 
 const TEMPLATES_DIR = join(process.cwd(), 'public', 'assets', 'templates');
 
+// Ensure directory exists
+async function ensureDirectory() {
+  if (!existsSync(TEMPLATES_DIR)) {
+    await mkdir(TEMPLATES_DIR, { recursive: true });
+  }
+}
+
 // GET - List all templates
 export async function GET() {
   try {
+    await ensureDirectory();
     const files = await readdir(TEMPLATES_DIR);
     const templates = [];
     
@@ -34,6 +43,7 @@ export async function GET() {
 // POST - Upload new template
 export async function POST(request: NextRequest) {
   try {
+    await ensureDirectory();
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const name = formData.get('name') as string;
@@ -42,6 +52,21 @@ export async function POST(request: NextRequest) {
     
     if (!file) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      return NextResponse.json({ 
+        error: 'Invalid file type. Please upload an image file.' 
+      }, { status: 400 });
+    }
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ 
+        error: 'File too large. Maximum size is 10MB.' 
+      }, { status: 400 });
     }
 
     const templateId = generateId();

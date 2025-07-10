@@ -112,6 +112,7 @@ export function MemeCreator() {
     duplicateElement,
     setCanvasSize,
     setCanvasBackground,
+    updateCanvasSettings,
     exportProject,
     undo,
     redo,
@@ -206,8 +207,8 @@ export function MemeCreator() {
   };
 
   const handleCanvasSettingsChange = (settings: CanvasSettings) => {
-    setCanvasSize(settings.width, settings.height);
-    setCanvasBackground(settings.backgroundColor);
+    // Use the combined update function to avoid race conditions
+    updateCanvasSettings(settings);
     showSnackbar('Canvas settings updated', 'success');
   };
 

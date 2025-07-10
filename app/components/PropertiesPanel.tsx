@@ -170,26 +170,6 @@ export function PropertiesPanel({
               />
             </Stack>
 
-            <FormControl size="small" fullWidth>
-              <InputLabel>Aspect Ratio</InputLabel>
-              <Select
-                value=""
-                label="Aspect Ratio"
-                onChange={(e) => {
-                  const ratio = CROP_RATIOS.find(r => r.name === e.target.value);
-                  if (ratio) {
-                    applyAspectRatio(ratio.ratio, ratio.width, ratio.height);
-                  }
-                }}
-              >
-                {CROP_RATIOS.map((ratio) => (
-                  <MenuItem key={ratio.name} value={ratio.name}>
-                    {ratio.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
             <Box>
               <Button
                 variant="outlined"

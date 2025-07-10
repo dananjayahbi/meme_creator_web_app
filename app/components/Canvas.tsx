@@ -13,6 +13,13 @@ interface CanvasProps {
   onDeleteElement: (elementId: string) => void;
 }
 
+interface ResizeHandle {
+  position: string;
+  cursor: string;
+  x: number;
+  y: number;
+}
+
 export function Canvas({
   project,
   selectedElement,
@@ -23,11 +30,15 @@ export function Canvas({
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<{
     isDragging: boolean;
+    isResizing: boolean;
     elementId: string;
     startX: number;
     startY: number;
+    resizeHandle?: string;
+    originalElement?: CanvasElement;
   }>({
     isDragging: false,
+    isResizing: false,
     elementId: '',
     startX: 0,
     startY: 0,
@@ -46,35 +57,117 @@ export function Canvas({
     if (rect) {
       setDragState({
         isDragging: true,
+        isResizing: false,
         elementId: element.id,
         startX: e.clientX - rect.left - element.x,
         startY: e.clientY - rect.top - element.y,
+        originalElement: element,
+      });
+    }
+  };
+
+  const handleResizeStart = (e: React.MouseEvent, element: CanvasElement, handle: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    onSelectElement(element);
+    
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (rect) {
+      setDragState({
+        isDragging: false,
+        isResizing: true,
+        elementId: element.id,
+        startX: e.clientX - rect.left,
+        startY: e.clientY - rect.top,
+        resizeHandle: handle,
+        originalElement: { ...element },
       });
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!dragState.isDragging) return;
+    if (!dragState.isDragging && !dragState.isResizing) return;
     
     const rect = canvasRef.current?.getBoundingClientRect();
-    if (rect) {
-      const element = elements.find(el => el.id === dragState.elementId);
-      if (element) {
-        const newX = e.clientX - rect.left - dragState.startX;
-        const newY = e.clientY - rect.top - dragState.startY;
-        
-        onUpdateElement({
-          ...element,
-          x: Math.max(0, Math.min(canvasSettings.width - element.width, newX)),
-          y: Math.max(0, Math.min(canvasSettings.height - element.height, newY)),
-        });
+    if (!rect) return;
+
+    const element = elements.find(el => el.id === dragState.elementId);
+    if (!element) return;
+
+    if (dragState.isDragging) {
+      // Handle dragging
+      const newX = e.clientX - rect.left - dragState.startX;
+      const newY = e.clientY - rect.top - dragState.startY;
+      
+      onUpdateElement({
+        ...element,
+        x: Math.max(0, Math.min(canvasSettings.width - element.width, newX)),
+        y: Math.max(0, Math.min(canvasSettings.height - element.height, newY)),
+      });
+    } else if (dragState.isResizing && dragState.originalElement) {
+      // Handle resizing
+      const currentX = e.clientX - rect.left;
+      const currentY = e.clientY - rect.top;
+      const deltaX = currentX - dragState.startX;
+      const deltaY = currentY - dragState.startY;
+      
+      let newWidth = dragState.originalElement.width;
+      let newHeight = dragState.originalElement.height;
+      let newX = dragState.originalElement.x;
+      let newY = dragState.originalElement.y;
+
+      switch (dragState.resizeHandle) {
+        case 'se': // Southeast
+          newWidth = Math.max(20, dragState.originalElement.width + deltaX);
+          newHeight = Math.max(20, dragState.originalElement.height + deltaY);
+          break;
+        case 'sw': // Southwest  
+          newWidth = Math.max(20, dragState.originalElement.width - deltaX);
+          newHeight = Math.max(20, dragState.originalElement.height + deltaY);
+          newX = dragState.originalElement.x + (dragState.originalElement.width - newWidth);
+          break;
+        case 'ne': // Northeast
+          newWidth = Math.max(20, dragState.originalElement.width + deltaX);
+          newHeight = Math.max(20, dragState.originalElement.height - deltaY);
+          newY = dragState.originalElement.y + (dragState.originalElement.height - newHeight);
+          break;
+        case 'nw': // Northwest
+          newWidth = Math.max(20, dragState.originalElement.width - deltaX);
+          newHeight = Math.max(20, dragState.originalElement.height - deltaY);
+          newX = dragState.originalElement.x + (dragState.originalElement.width - newWidth);
+          newY = dragState.originalElement.y + (dragState.originalElement.height - newHeight);
+          break;
+        case 'e': // East
+          newWidth = Math.max(20, dragState.originalElement.width + deltaX);
+          break;
+        case 'w': // West
+          newWidth = Math.max(20, dragState.originalElement.width - deltaX);
+          newX = dragState.originalElement.x + (dragState.originalElement.width - newWidth);
+          break;
+        case 'n': // North
+          newHeight = Math.max(20, dragState.originalElement.height - deltaY);
+          newY = dragState.originalElement.y + (dragState.originalElement.height - newHeight);
+          break;
+        case 's': // South
+          newHeight = Math.max(20, dragState.originalElement.height + deltaY);
+          break;
       }
+
+      onUpdateElement({
+        ...element,
+        x: Math.max(0, Math.min(canvasSettings.width - newWidth, newX)),
+        y: Math.max(0, Math.min(canvasSettings.height - newHeight, newY)),
+        width: newWidth,
+        height: newHeight,
+      });
     }
   };
 
   const handleMouseUp = () => {
     setDragState({
       isDragging: false,
+      isResizing: false,
       elementId: '',
       startX: 0,
       startY: 0,
@@ -152,23 +245,145 @@ export function Canvas({
 
     if (element.type === 'image') {
       return (
-        <Box
-          key={element.id}
-          sx={elementStyle}
-          onMouseDown={(e) => handleMouseDown(e, element)}
-        >
-          <img
-            src={element.data.src}
-            alt="Meme element"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              borderRadius: element.data.borderRadius || '0px',
-              filter: element.data.filter || 'none',
-            }}
-            draggable={false}
-          />
+        <Box key={element.id}>
+          <Box
+            sx={elementStyle}
+            onMouseDown={(e) => handleMouseDown(e, element)}
+          >
+            <img
+              src={element.data.src}
+              alt="Meme element"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                borderRadius: element.data.borderRadius || '0px',
+                filter: element.data.filter || 'none',
+              }}
+              draggable={false}
+            />
+          </Box>
+          
+          {/* Resize handles for selected image */}
+          {isSelected && element.data.resizable && (
+            <>
+              {/* Corner handles */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'nw-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'nw')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'ne-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'ne')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'sw-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'sw')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'se-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'se')}
+              />
+              
+              {/* Edge handles */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width / 2 - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'n-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'n')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width / 2 - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 's-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 's')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y + element.height / 2 - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'w-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'w')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y + element.height / 2 - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'e-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'e')}
+              />
+            </>
+          )}
         </Box>
       );
     }
