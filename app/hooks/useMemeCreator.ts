@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { MemeProject, MemeTemplate, CanvasElement, LayerGroup } from '../types';
+import { MemeProject, MemeTemplate, CanvasElement, LayerGroup, CanvasSettings } from '../types';
 import { storageService } from '../lib/storage';
 import { generateId } from '../lib/utils';
 import { DEFAULT_CANVAS_SETTINGS, DEFAULT_TEXT_STYLE } from '../lib/constants';
@@ -20,7 +20,7 @@ interface UseMemeCreatorReturn {
   // Project management
   createNewProject: () => void;
   saveProject: () => Promise<void>;
-  loadProject: (projectId: string) => void;
+  loadProject: (projectIdOrObject: string | MemeProject) => void;
   deleteProject: (projectId: string) => void;
   
   // Template management
@@ -60,6 +60,12 @@ interface UseMemeCreatorReturn {
   
   // Export
   exportProject: () => any;
+
+  // Manual save management
+  saveToMyMemes: (customName?: string) => void;
+  updateCurrentMeme: () => void;
+  isCurrentMemeInCollection: boolean;
+  getCurrentMemeStatus: () => 'new' | 'saved' | 'modified';
 }
 
 export function useMemeCreator(): UseMemeCreatorReturn {
@@ -70,6 +76,8 @@ export function useMemeCreator(): UseMemeCreatorReturn {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<MemeProject[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [savedMemeId, setSavedMemeId] = useState<string | null>(null); // Track if current project is saved
+  const [lastSavedState, setLastSavedState] = useState<string | null>(null); // Track changes
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
@@ -99,6 +107,10 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     setSelectedElement(null);
     setHistory([newProject]);
     setHistoryIndex(0);
+    
+    // Reset saved state
+    setSavedMemeId(null);
+    setLastSavedState(null);
   }, []);
 
   // Auto-save current project to localStorage
@@ -167,15 +179,26 @@ export function useMemeCreator(): UseMemeCreatorReturn {
   }, [currentProject]);
 
   // Load project
-  const loadProject = useCallback((projectId: string) => {
+  const loadProject = useCallback((projectIdOrObject: string | MemeProject) => {
     try {
-      const projects = storageService.getProjects();
-      const project = projects.find(p => p.id === projectId);
-      if (project) {
-        setCurrentProject(project);
+      let projectToLoad: MemeProject | null = null;
+      
+      if (typeof projectIdOrObject === 'string') {
+        const projects = storageService.getProjects();
+        projectToLoad = projects.find(p => p.id === projectIdOrObject) || null;
+      } else {
+        projectToLoad = projectIdOrObject;
+      }
+      
+      if (projectToLoad) {
+        setCurrentProject(projectToLoad);
         setSelectedElement(null);
-        setHistory([project]);
+        setHistory([projectToLoad]);
         setHistoryIndex(0);
+        
+        // Mark as saved since we loaded it from the collection
+        setSavedMemeId(projectToLoad.id);
+        setLastSavedState(JSON.stringify(projectToLoad));
       }
     } catch (err) {
       setError('Failed to load project');
@@ -747,6 +770,57 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     return currentProject;
   }, [currentProject]);
 
+  // Manual save management functions
+  const saveToMyMemes = useCallback((customName?: string) => {
+    if (!currentProject) return;
+    
+    const nameToUse = customName || currentProject.name;
+    const projectToSave = {
+      ...currentProject,
+      name: nameToUse,
+      updatedAt: new Date(),
+    };
+    
+    // Save to storage
+    storageService.saveProject(projectToSave);
+    
+    // Mark as saved
+    setSavedMemeId(projectToSave.id);
+    setLastSavedState(JSON.stringify(projectToSave));
+    
+    // Update current project name if changed
+    if (customName && customName !== currentProject.name) {
+      setCurrentProject(projectToSave);
+    }
+  }, [currentProject]);
+  
+  const updateCurrentMeme = useCallback(() => {
+    if (!currentProject || !savedMemeId) return;
+    
+    const updatedProject = {
+      ...currentProject,
+      updatedAt: new Date(),
+    };
+    
+    // Update in storage
+    storageService.saveProject(updatedProject);
+    
+    // Update saved state
+    setLastSavedState(JSON.stringify(updatedProject));
+  }, [currentProject, savedMemeId]);
+  
+  const isCurrentMemeInCollection = Boolean(savedMemeId && currentProject?.id === savedMemeId);
+  
+  const getCurrentMemeStatus = useCallback((): 'new' | 'saved' | 'modified' => {
+    if (!currentProject) return 'new';
+    
+    const currentState = JSON.stringify(currentProject);
+    
+    if (!savedMemeId) return 'new';
+    if (currentState === lastSavedState) return 'saved';
+    return 'modified';
+  }, [currentProject, savedMemeId, lastSavedState]);
+
   return {
     currentProject,
     templates,
@@ -794,5 +868,11 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     redo,
     
     exportProject,
+
+    // Manual save management
+    saveToMyMemes,
+    updateCurrentMeme,
+    isCurrentMemeInCollection,
+    getCurrentMemeStatus,
   };
 }

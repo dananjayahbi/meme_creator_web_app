@@ -193,7 +193,7 @@ export function TemplateManager({
         </DialogTitle>
 
         <DialogContent>
-          <Stack spacing={3}>
+          <Stack spacing={3} sx={{mt:1 }}>
             {/* Search and Filter Bar */}
             <Stack direction="row" spacing={2} alignItems="center">
               <TextField
