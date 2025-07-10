@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { Box, Paper, Typography } from '@mui/material';
+import { TextEditor } from './TextEditor';
 import { MemeProject, CanvasElement } from '../types';
 import { DEFAULT_CANVAS_SETTINGS } from '../lib/constants';
 
@@ -9,8 +10,15 @@ interface CanvasProps {
   project?: MemeProject;
   selectedElement?: CanvasElement;
   onSelectElement: (element: CanvasElement) => void;
-  onUpdateElement: (element: CanvasElement) => void;
+  onUpdateElement: (element: CanvasElement, addToHistory?: boolean) => void;
   onDeleteElement: (elementId: string) => void;
+}
+
+interface ResizeHandle {
+  position: string;
+  cursor: string;
+  x: number;
+  y: number;
 }
 
 export function Canvas({
@@ -23,15 +31,23 @@ export function Canvas({
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<{
     isDragging: boolean;
+    isResizing: boolean;
     elementId: string;
     startX: number;
     startY: number;
+    resizeHandle?: string;
+    originalElement?: CanvasElement;
+    initialElement?: CanvasElement; // Store initial state for history
   }>({
     isDragging: false,
+    isResizing: false,
     elementId: '',
     startX: 0,
     startY: 0,
   });
+  
+  // State to track which text element is being edited (if any)
+  const [editingTextElement, setEditingTextElement] = useState<CanvasElement | null>(null);
 
   const canvasSettings = project?.canvas || DEFAULT_CANVAS_SETTINGS;
   const elements = project?.elements || [];
@@ -40,41 +56,156 @@ export function Canvas({
     e.preventDefault();
     e.stopPropagation();
     
+    // Don't allow interaction with locked elements
+    const isLocked = element.data?.locked === true;
+    if (isLocked) {
+      return;
+    }
+    
     onSelectElement(element);
     
     const rect = canvasRef.current?.getBoundingClientRect();
     if (rect) {
       setDragState({
         isDragging: true,
+        isResizing: false,
         elementId: element.id,
         startX: e.clientX - rect.left - element.x,
         startY: e.clientY - rect.top - element.y,
+        originalElement: element,
+        initialElement: { ...element }, // Store initial state
+      });
+    }
+  };
+
+  const handleResizeStart = (e: React.MouseEvent, element: CanvasElement, handle: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Don't allow resizing locked elements
+    const isLocked = element.data?.locked === true;
+    if (isLocked) {
+      return;
+    }
+    
+    onSelectElement(element);
+    
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (rect) {
+      setDragState({
+        isDragging: false,
+        isResizing: true,
+        elementId: element.id,
+        startX: e.clientX - rect.left,
+        startY: e.clientY - rect.top,
+        resizeHandle: handle,
+        originalElement: { ...element },
+        initialElement: { ...element }, // Store initial state
       });
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!dragState.isDragging) return;
+    if (!dragState.isDragging && !dragState.isResizing) return;
     
     const rect = canvasRef.current?.getBoundingClientRect();
-    if (rect) {
-      const element = elements.find(el => el.id === dragState.elementId);
-      if (element) {
-        const newX = e.clientX - rect.left - dragState.startX;
-        const newY = e.clientY - rect.top - dragState.startY;
-        
-        onUpdateElement({
-          ...element,
-          x: Math.max(0, Math.min(canvasSettings.width - element.width, newX)),
-          y: Math.max(0, Math.min(canvasSettings.height - element.height, newY)),
-        });
+    if (!rect) return;
+
+    const element = elements.find(el => el.id === dragState.elementId);
+    if (!element) return;
+
+    if (dragState.isDragging) {
+      // Handle dragging
+      const newX = e.clientX - rect.left - dragState.startX;
+      const newY = e.clientY - rect.top - dragState.startY;
+      
+      onUpdateElement({
+        ...element,
+        x: Math.max(0, Math.min(canvasSettings.width - element.width, newX)),
+        y: Math.max(0, Math.min(canvasSettings.height - element.height, newY)),
+      });
+    } else if (dragState.isResizing && dragState.originalElement) {
+      // Handle resizing
+      const currentX = e.clientX - rect.left;
+      const currentY = e.clientY - rect.top;
+      const deltaX = currentX - dragState.startX;
+      const deltaY = currentY - dragState.startY;
+      
+      let newWidth = dragState.originalElement.width;
+      let newHeight = dragState.originalElement.height;
+      let newX = dragState.originalElement.x;
+      let newY = dragState.originalElement.y;
+
+      switch (dragState.resizeHandle) {
+        case 'se': // Southeast
+          newWidth = Math.max(20, dragState.originalElement.width + deltaX);
+          newHeight = Math.max(20, dragState.originalElement.height + deltaY);
+          break;
+        case 'sw': // Southwest  
+          newWidth = Math.max(20, dragState.originalElement.width - deltaX);
+          newHeight = Math.max(20, dragState.originalElement.height + deltaY);
+          newX = dragState.originalElement.x + (dragState.originalElement.width - newWidth);
+          break;
+        case 'ne': // Northeast
+          newWidth = Math.max(20, dragState.originalElement.width + deltaX);
+          newHeight = Math.max(20, dragState.originalElement.height - deltaY);
+          newY = dragState.originalElement.y + (dragState.originalElement.height - newHeight);
+          break;
+        case 'nw': // Northwest
+          newWidth = Math.max(20, dragState.originalElement.width - deltaX);
+          newHeight = Math.max(20, dragState.originalElement.height - deltaY);
+          newX = dragState.originalElement.x + (dragState.originalElement.width - newWidth);
+          newY = dragState.originalElement.y + (dragState.originalElement.height - newHeight);
+          break;
+        case 'e': // East
+          newWidth = Math.max(20, dragState.originalElement.width + deltaX);
+          break;
+        case 'w': // West
+          newWidth = Math.max(20, dragState.originalElement.width - deltaX);
+          newX = dragState.originalElement.x + (dragState.originalElement.width - newWidth);
+          break;
+        case 'n': // North
+          newHeight = Math.max(20, dragState.originalElement.height - deltaY);
+          newY = dragState.originalElement.y + (dragState.originalElement.height - newHeight);
+          break;
+        case 's': // South
+          newHeight = Math.max(20, dragState.originalElement.height + deltaY);
+          break;
       }
+
+      onUpdateElement({
+        ...element,
+        x: Math.max(0, Math.min(canvasSettings.width - newWidth, newX)),
+        y: Math.max(0, Math.min(canvasSettings.height - newHeight, newY)),
+        width: newWidth,
+        height: newHeight,
+      });
     }
   };
 
   const handleMouseUp = () => {
+    // If we were dragging or resizing, add to history
+    if ((dragState.isDragging || dragState.isResizing) && dragState.initialElement && dragState.elementId) {
+      const currentElement = elements.find(el => el.id === dragState.elementId);
+      
+      // Check if the element actually changed
+      if (currentElement && dragState.initialElement) {
+        const hasChanged = 
+          currentElement.x !== dragState.initialElement.x ||
+          currentElement.y !== dragState.initialElement.y ||
+          currentElement.width !== dragState.initialElement.width ||
+          currentElement.height !== dragState.initialElement.height;
+        
+        if (hasChanged) {
+          // Update element with history flag
+          onUpdateElement(currentElement, true);
+        }
+      }
+    }
+    
     setDragState({
       isDragging: false,
+      isResizing: false,
       elementId: '',
       startX: 0,
       startY: 0,
@@ -93,6 +224,35 @@ export function Canvas({
     }
   };
 
+  const handleDoubleClick = (e: React.MouseEvent, element: CanvasElement) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    console.log('Double click detected on:', element);
+    
+    // Don't allow editing locked elements
+    const isLocked = element.data?.locked === true;
+    if (isLocked) {
+      console.log('Element is locked, not allowing edit');
+      return;
+    }
+    
+    // Only handle text elements
+    if (element.type === 'text') {
+      console.log('Setting text element for editing');
+      setEditingTextElement(element);
+    }
+  };
+  
+  const handleTextUpdate = (updatedElement: CanvasElement) => {
+    onUpdateElement(updatedElement, true); // Add to history
+    setEditingTextElement(null); // Close editor after update
+  };
+  
+  const handleCloseTextEditor = () => {
+    setEditingTextElement(null);
+  };
+
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
@@ -100,6 +260,13 @@ export function Canvas({
 
   const renderElement = (element: CanvasElement) => {
     const isSelected = selectedElement?.id === element.id;
+    const isVisible = element.data?.visible !== false; // Default to visible if not specified
+    const isLocked = element.data?.locked === true;
+    
+    // Don't render if element is not visible
+    if (!isVisible) {
+      return null;
+    }
     
     const elementStyle = {
       position: 'absolute' as const,
@@ -109,82 +276,462 @@ export function Canvas({
       height: element.height,
       transform: `rotate(${element.rotation}deg)`,
       opacity: element.opacity,
-      cursor: 'move',
+      cursor: isLocked ? 'not-allowed' : 'move',
       border: isSelected ? '2px solid #1976d2' : '1px solid transparent',
       borderRadius: '4px',
       zIndex: element.type === 'text' ? 2 : 1,
+      pointerEvents: isLocked ? 'none' : 'auto',
     };
 
     if (element.type === 'text') {
+      const isEditing = editingTextElement && editingTextElement.id === element.id;
+      
       return (
-        <Box
-          key={element.id}
-          sx={elementStyle}
-          onMouseDown={(e) => handleMouseDown(e, element)}
-        >
-          <Typography
+        <Box key={element.id}>
+          <Box
             sx={{
-              fontSize: element.data.fontSize || 32,
-              fontFamily: element.data.fontFamily || 'Arial',
-              color: element.data.color || '#000000',
-              backgroundColor: element.data.backgroundColor || 'transparent',
-              textAlign: element.data.textAlign || 'center',
-              fontWeight: element.data.fontWeight || 'bold',
-              fontStyle: element.data.fontStyle || 'normal',
-              textShadow: element.data.textShadow || 'none',
-              padding: '4px 8px',
-              border: element.data.borderWidth ? `${element.data.borderWidth}px solid ${element.data.borderColor || '#000000'}` : 'none',
-              borderRadius: element.data.borderRadius || '0px',
-              wordWrap: 'break-word',
-              whiteSpace: 'pre-wrap',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: element.data.textAlign || 'center',
-              userSelect: 'none',
+              ...elementStyle,
+              // Hide the original text element while editing
+              opacity: isEditing ? 0 : 1,
+              cursor: 'pointer',
             }}
+            onMouseDown={(e) => handleMouseDown(e, element)}
+            onDoubleClick={(e) => handleDoubleClick(e, element)}
           >
-            {element.data.text || 'Double click to edit'}
-          </Typography>
+            <Typography
+                component="div"  /* Change to div instead of p */
+                sx={{
+                  fontSize: element.data.fontSize || 32,
+                  fontFamily: element.data.fontFamily || 'Arial',
+                  color: element.data.color || '#000000',
+                  backgroundColor: element.data.backgroundColor || 'transparent',
+                  textAlign: element.data.textAlign || 'center',
+                  fontWeight: element.data.fontWeight || 'bold',
+                  fontStyle: element.data.fontStyle || 'normal',
+                  textShadow: element.data.textShadow || 'none',
+                  padding: '4px 8px',
+                  border: element.data.borderWidth ? `${element.data.borderWidth}px solid ${element.data.borderColor || '#000000'}` : 'none',
+                  borderRadius: element.data.borderRadius || '0px',
+                  wordWrap: 'break-word',
+                  whiteSpace: 'pre-wrap',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: element.data.textAlign || 'center',
+                  userSelect: 'none',
+                }}
+              >
+                {element.data.text || 'Text'}
+              </Typography>
+              
+              {/* Tooltip moved outside of Typography */}
+              {/* Tooltip removed as requested */}
+          </Box>
+          
+          {/* Resize handles for selected text */}
+          {isSelected && !isLocked && (
+            <>
+              {/* Corner handles */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'nw-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'nw')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'ne-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'ne')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'sw-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'sw')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'se-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'se')}
+              />
+              
+              {/* Edge handles */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width / 2 - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'n-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'n')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width / 2 - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 's-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 's')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y + element.height / 2 - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'w-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'w')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y + element.height / 2 - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'e-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'e')}
+              />
+            </>
+          )}
         </Box>
       );
     }
 
     if (element.type === 'image') {
       return (
-        <Box
-          key={element.id}
-          sx={elementStyle}
-          onMouseDown={(e) => handleMouseDown(e, element)}
-        >
-          <img
-            src={element.data.src}
-            alt="Meme element"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              borderRadius: element.data.borderRadius || '0px',
-              filter: element.data.filter || 'none',
-            }}
-            draggable={false}
-          />
+        <Box key={element.id}>
+          <Box
+            sx={elementStyle}
+            onMouseDown={(e) => handleMouseDown(e, element)}
+            onDoubleClick={(e) => handleDoubleClick(e, element)}
+          >
+            <img
+              src={element.data.src}
+              alt="Meme element"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                borderRadius: element.data.borderRadius || '0px',
+                filter: element.data.filter || 'none',
+              }}
+              draggable={false}
+            />
+          </Box>
+          
+          {/* Resize handles for selected image */}
+          {isSelected && !isLocked && element.data.resizable && (
+            <>
+              {/* Corner handles */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'nw-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'nw')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'ne-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'ne')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'sw-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'sw')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'se-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'se')}
+              />
+              
+              {/* Edge handles */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width / 2 - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'n-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'n')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width / 2 - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 's-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 's')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y + element.height / 2 - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'w-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'w')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y + element.height / 2 - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'e-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'e')}
+              />
+            </>
+          )}
         </Box>
       );
     }
 
     if (element.type === 'shape') {
       return (
-        <Box
-          key={element.id}
-          sx={{
-            ...elementStyle,
-            backgroundColor: element.data.backgroundColor || '#1976d2',
-            borderRadius: element.data.borderRadius || '0px',
-            border: element.data.borderWidth ? `${element.data.borderWidth}px solid ${element.data.borderColor || '#000000'}` : 'none',
-          }}
-          onMouseDown={(e) => handleMouseDown(e, element)}
-        />
+        <Box key={element.id}>
+          <Box
+            sx={{
+              ...elementStyle,
+              backgroundColor: element.data.backgroundColor || '#1976d2',
+              borderRadius: element.data.borderRadius || '0px',
+              border: element.data.borderWidth ? `${element.data.borderWidth}px solid ${element.data.borderColor || '#000000'}` : 'none',
+            }}
+            onMouseDown={(e) => handleMouseDown(e, element)}
+          />
+          
+          {/* Resize handles for selected shape */}
+          {isSelected && !isLocked && (
+            <>
+              {/* Corner handles */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'nw-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'nw')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'ne-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'ne')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'sw-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'sw')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'se-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'se')}
+              />
+              
+              {/* Edge handles */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width / 2 - 4,
+                  top: element.y - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'n-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'n')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width / 2 - 4,
+                  top: element.y + element.height - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 's-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 's')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x - 4,
+                  top: element.y + element.height / 2 - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'w-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'w')}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  left: element.x + element.width - 4,
+                  top: element.y + element.height / 2 - 4,
+                  width: 8,
+                  height: 8,
+                  backgroundColor: '#1976d2',
+                  border: '1px solid white',
+                  cursor: 'e-resize',
+                  zIndex: 1001,
+                }}
+                onMouseDown={(e) => handleResizeStart(e, element, 'e')}
+              />
+            </>
+          )}
+        </Box>
       );
     }
 
@@ -215,6 +762,14 @@ export function Canvas({
         onClick={handleCanvasClick}
         onMouseLeave={handleMouseUp}
       >
+        {/* Text Editor overlay */}
+        {editingTextElement && (
+          <TextEditor
+            element={editingTextElement}
+            onUpdate={handleTextUpdate}
+            onClose={handleCloseTextEditor}
+          />
+        )}
         {elements.length === 0 && (
           <Box
             sx={{
@@ -247,11 +802,22 @@ export function Canvas({
               top: selectedElement.y - 4,
               width: selectedElement.width + 8,
               height: selectedElement.height + 8,
-              border: '2px solid #1976d2',
+              border: selectedElement.data?.locked === true 
+                ? '2px solid #ff9800' 
+                : '2px solid #1976d2',
               borderRadius: '6px',
               pointerEvents: 'none',
               zIndex: 1000,
             }}
+          />
+        )}
+
+        {/* Text Editor for double-click editing */}
+        {editingTextElement && (
+          <TextEditor
+            element={editingTextElement}
+            onUpdate={handleTextUpdate}
+            onClose={handleCloseTextEditor}
           />
         )}
       </Box>

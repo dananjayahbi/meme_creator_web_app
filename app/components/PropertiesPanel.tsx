@@ -42,7 +42,7 @@ import { CROP_RATIOS } from '../lib/constants';
 interface PropertiesPanelProps {
   selectedElement?: CanvasElement;
   canvasSettings: CanvasSettings;
-  onUpdateElement: (element: CanvasElement) => void;
+  onUpdateElement: (element: CanvasElement, addToHistory?: boolean) => void;
   onUpdateCanvasSettings: (settings: CanvasSettings) => void;
 }
 
@@ -64,7 +64,7 @@ export function PropertiesPanel({
       ...selectedElement,
       [property]: value,
     };
-    onUpdateElement(updatedElement);
+    onUpdateElement(updatedElement, true); // Add to history
   };
 
   const handleElementDataUpdate = (property: string, value: any) => {
@@ -77,7 +77,7 @@ export function PropertiesPanel({
         [property]: value,
       },
     };
-    onUpdateElement(updatedElement);
+    onUpdateElement(updatedElement, true); // Add to history
   };
 
   const handleCanvasUpdate = (property: string, value: any) => {
@@ -119,9 +119,9 @@ export function PropertiesPanel({
   const applyAspectRatio = (ratio: number, width: number, height: number) => {
     if (ratio === 0) return; // Custom ratio
     
-    const newHeight = width / ratio;
+    // Use the predefined width and height from the ratio
     handleCanvasUpdate('width', width);
-    handleCanvasUpdate('height', newHeight);
+    handleCanvasUpdate('height', height);
   };
 
   const centerElement = () => {
@@ -151,48 +151,24 @@ export function PropertiesPanel({
         </AccordionSummary>
         <AccordionDetails>
           <Stack spacing={2}>
-            <Grid container spacing={2}>
-              <Grid item xs={6}>
-                <TextField
-                  label="Width"
-                  type="number"
-                  value={canvasSettings.width}
-                  onChange={(e) => handleCanvasUpdate('width', parseInt(e.target.value))}
-                  size="small"
-                  fullWidth
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <TextField
-                  label="Height"
-                  type="number"
-                  value={canvasSettings.height}
-                  onChange={(e) => handleCanvasUpdate('height', parseInt(e.target.value))}
-                  size="small"
-                  fullWidth
-                />
-              </Grid>
-            </Grid>
-
-            <FormControl size="small" fullWidth>
-              <InputLabel>Aspect Ratio</InputLabel>
-              <Select
-                value=""
-                label="Aspect Ratio"
-                onChange={(e) => {
-                  const ratio = CROP_RATIOS.find(r => r.name === e.target.value);
-                  if (ratio) {
-                    applyAspectRatio(ratio.ratio, ratio.width, ratio.height);
-                  }
-                }}
-              >
-                {CROP_RATIOS.map((ratio) => (
-                  <MenuItem key={ratio.name} value={ratio.name}>
-                    {ratio.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Stack direction="row" spacing={2}>
+              <TextField
+                label="Width"
+                type="number"
+                value={canvasSettings.width || 800}
+                onChange={(e) => handleCanvasUpdate('width', parseInt(e.target.value) || 800)}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                label="Height"
+                type="number"
+                value={canvasSettings.height || 600}
+                onChange={(e) => handleCanvasUpdate('height', parseInt(e.target.value) || 600)}
+                size="small"
+                fullWidth
+              />
+            </Stack>
 
             <Box>
               <Button
@@ -237,56 +213,50 @@ export function PropertiesPanel({
           <AccordionDetails>
             <Stack spacing={2}>
               <Typography variant="body2" color="text.secondary">
-                {selectedElement.type.charAt(0).toUpperCase() + selectedElement.type.slice(1)} Element
+                {selectedElement?.type ? 
+                  selectedElement.type.charAt(0).toUpperCase() + selectedElement.type.slice(1) : 
+                  'Element'} Element
               </Typography>
 
               {/* Position */}
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <TextField
-                    label="X Position"
-                    type="number"
-                    value={Math.round(selectedElement.x)}
-                    onChange={(e) => handleElementUpdate('x', parseInt(e.target.value))}
-                    size="small"
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={6}>
-                  <TextField
-                    label="Y Position"
-                    type="number"
-                    value={Math.round(selectedElement.y)}
-                    onChange={(e) => handleElementUpdate('y', parseInt(e.target.value))}
-                    size="small"
-                    fullWidth
-                  />
-                </Grid>
-              </Grid>
+              <Stack direction="row" spacing={2}>
+                <TextField
+                  label="X Position"
+                  type="number"
+                  value={Math.round(selectedElement.x || 0)}
+                  onChange={(e) => handleElementUpdate('x', parseInt(e.target.value) || 0)}
+                  size="small"
+                  fullWidth
+                />
+                <TextField
+                  label="Y Position"
+                  type="number"
+                  value={Math.round(selectedElement.y || 0)}
+                  onChange={(e) => handleElementUpdate('y', parseInt(e.target.value) || 0)}
+                  size="small"
+                  fullWidth
+                />
+              </Stack>
 
               {/* Size */}
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
-                  <TextField
-                    label="Width"
-                    type="number"
-                    value={Math.round(selectedElement.width)}
-                    onChange={(e) => handleElementUpdate('width', parseInt(e.target.value))}
-                    size="small"
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={6}>
-                  <TextField
-                    label="Height"
-                    type="number"
-                    value={Math.round(selectedElement.height)}
-                    onChange={(e) => handleElementUpdate('height', parseInt(e.target.value))}
-                    size="small"
-                    fullWidth
-                  />
-                </Grid>
-              </Grid>
+              <Stack direction="row" spacing={2}>
+                <TextField
+                  label="Width"
+                  type="number"
+                  value={Math.round(selectedElement.width || 100)}
+                  onChange={(e) => handleElementUpdate('width', parseInt(e.target.value) || 100)}
+                  size="small"
+                  fullWidth
+                />
+                <TextField
+                  label="Height"
+                  type="number"
+                  value={Math.round(selectedElement.height || 50)}
+                  onChange={(e) => handleElementUpdate('height', parseInt(e.target.value) || 50)}
+                  size="small"
+                  fullWidth
+                />
+              </Stack>
 
               {/* Quick Actions */}
               <Stack direction="row" spacing={1}>
@@ -368,7 +338,7 @@ export function PropertiesPanel({
                     label="Font Size"
                     type="number"
                     value={selectedElement.data?.fontSize || 16}
-                    onChange={(e) => handleElementDataUpdate('fontSize', parseInt(e.target.value))}
+                    onChange={(e) => handleElementDataUpdate('fontSize', parseInt(e.target.value) || 16)}
                     size="small"
                     fullWidth
                   />

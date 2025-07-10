@@ -249,7 +249,7 @@ export function ToolsPanel({
           <Typography variant="subtitle2" gutterBottom>
             Shapes
           </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap">
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, width: '100%' }}>
             {shapes.map((shape) => (
               <Tooltip key={shape.value} title={shape.label}>
                 <IconButton
@@ -258,14 +258,18 @@ export function ToolsPanel({
                     border: 1,
                     borderColor: 'divider',
                     borderRadius: 1,
-                    mb: 1,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    width: '100%',
+                    height: '40px',
                   }}
                 >
                   {shape.icon}
                 </IconButton>
               </Tooltip>
             ))}
-          </Stack>
+          </Box>
         </Paper>
       )}
 

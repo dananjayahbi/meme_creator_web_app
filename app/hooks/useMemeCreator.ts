@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { MemeProject, MemeTemplate, CanvasElement, CanvasSettings } from '../types';
+import { MemeProject, MemeTemplate, CanvasElement, LayerGroup } from '../types';
 import { storageService } from '../lib/storage';
 import { generateId } from '../lib/utils';
 import { DEFAULT_CANVAS_SETTINGS, DEFAULT_TEXT_STYLE } from '../lib/constants';
@@ -26,20 +26,33 @@ interface UseMemeCreatorReturn {
   // Template management
   loadTemplate: (template: MemeTemplate) => void;
   saveAsTemplate: (name: string) => Promise<void>;
-  deleteTemplate: (templateId: string) => void;
+  saveTemplate: (template: MemeTemplate) => Promise<void>;
+  uploadTemplate: (file: File, name: string, width: number, height: number) => Promise<MemeTemplate>;
+  deleteTemplate: (templateId: string) => Promise<void>;
+  refreshTemplates: () => Promise<void>;
   
   // Element management
   addTextElement: () => void;
   addImageElement: (src: string) => void;
   addShapeElement: (shape: string) => void;
-  updateElement: (element: CanvasElement) => void;
+  updateElement: (element: CanvasElement, addToHistoryFlag?: boolean) => void;
   deleteElement: (elementId: string) => void;
   selectElement: (element: CanvasElement) => void;
   duplicateElement: (elementId: string) => void;
+  reorderElements: (elements: CanvasElement[]) => void;
+  
+  // Group management
+  createGroup: (elementIds: string[], name?: string) => void;
+  updateGroup: (groupId: string, updates: Partial<LayerGroup>) => void;
+  deleteGroup: (groupId: string) => void;
+  addToGroup: (groupId: string, elementIds: string[]) => void;
+  removeFromGroup: (elementId: string) => void;
+  reorderElementsInGroup: (groupId: string, elementIds: string[]) => void;
   
   // Canvas management
   setCanvasSize: (width: number, height: number) => void;
   setCanvasBackground: (color: string) => void;
+  updateCanvasSettings: (settings: Partial<CanvasSettings>) => void;
   
   // History management
   undo: () => void;
@@ -60,21 +73,6 @@ export function useMemeCreator(): UseMemeCreatorReturn {
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
-
-  // Load templates on mount
-  useEffect(() => {
-    try {
-      const loadedTemplates = storageService.getTemplates();
-      setTemplates(loadedTemplates);
-      
-      // Create default project if none exists
-      if (!currentProject) {
-        createNewProject();
-      }
-    } catch (err) {
-      setError('Failed to load templates');
-    }
-  }, []);
 
   // Add to history
   const addToHistory = useCallback((project: MemeProject) => {
@@ -102,6 +100,50 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     setHistory([newProject]);
     setHistoryIndex(0);
   }, []);
+
+  // Auto-save current project to localStorage
+  useEffect(() => {
+    if (currentProject) {
+      const saveTimer = setTimeout(() => {
+        localStorage.setItem('currentProject', JSON.stringify(currentProject));
+      }, 1000); // Auto-save after 1 second of inactivity
+
+      return () => clearTimeout(saveTimer);
+    }
+  }, [currentProject]);
+
+  // Load templates and restore project on mount
+  useEffect(() => {
+    const loadTemplates = async () => {
+      try {
+        setIsLoading(true);
+        const loadedTemplates = await storageService.getTemplates();
+        setTemplates(loadedTemplates);
+        
+        // Try to restore the last project from localStorage
+        const savedProject = localStorage.getItem('currentProject');
+        if (savedProject) {
+          try {
+            const parsedProject = JSON.parse(savedProject);
+            setCurrentProject(parsedProject);
+            setHistory([parsedProject]);
+            setHistoryIndex(0);
+          } catch (e) {
+            console.error('Failed to restore project:', e);
+            createNewProject();
+          }
+        } else {
+          createNewProject();
+        }
+      } catch (err) {
+        setError('Failed to load templates');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadTemplates();
+  }, [createNewProject]);
 
   // Save project
   const saveProject = useCallback(async () => {
@@ -152,9 +194,49 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     }
   }, [currentProject, createNewProject]);
 
-  // Load template
+  // Load template - adjusts canvas to template size
   const loadTemplate = useCallback((template: MemeTemplate) => {
     if (!currentProject) return;
+    
+    // Create background image element that matches template exactly
+    const backgroundElement: CanvasElement = {
+      id: generateId(),
+      type: 'image',
+      x: 0,
+      y: 0,
+      width: template.width,
+      height: template.height,
+      rotation: 0,
+      opacity: 1,
+      data: { 
+        src: template.imageUrl,
+        isBackground: true // Mark as background template
+      },
+    };
+
+    // Create text elements from template
+    const textElements = template.textBoxes.map(textBox => ({
+      id: generateId(),
+      type: 'text' as const,
+      x: textBox.x,
+      y: textBox.y,
+      width: textBox.width,
+      height: textBox.height,
+      rotation: textBox.rotation || 0,
+      opacity: textBox.opacity || 1,
+      data: {
+        text: textBox.text,
+        fontSize: textBox.fontSize,
+        fontFamily: textBox.fontFamily,
+        color: textBox.color,
+        backgroundColor: textBox.backgroundColor,
+        textAlign: textBox.textAlign,
+        fontWeight: textBox.fontWeight,
+        fontStyle: textBox.fontStyle,
+        borderColor: textBox.borderColor,
+        borderWidth: textBox.borderWidth,
+      },
+    }));
     
     const updatedProject: MemeProject = {
       ...currentProject,
@@ -164,39 +246,7 @@ export function useMemeCreator(): UseMemeCreatorReturn {
         height: template.height,
         backgroundColor: '#ffffff',
       },
-      elements: [
-        {
-          id: generateId(),
-          type: 'image',
-          x: 0,
-          y: 0,
-          width: template.width,
-          height: template.height,
-          rotation: 0,
-          opacity: 1,
-          data: { src: template.imageUrl },
-        },
-        ...template.textBoxes.map(textBox => ({
-          id: generateId(),
-          type: 'text' as const,
-          x: textBox.x,
-          y: textBox.y,
-          width: textBox.width,
-          height: textBox.height,
-          rotation: textBox.rotation,
-          opacity: textBox.opacity,
-          data: {
-            text: textBox.text,
-            fontSize: textBox.fontSize,
-            fontFamily: textBox.fontFamily,
-            color: textBox.color,
-            backgroundColor: textBox.backgroundColor,
-            textAlign: textBox.textAlign,
-            fontWeight: textBox.fontWeight,
-            fontStyle: textBox.fontStyle,
-          },
-        })),
-      ],
+      elements: [backgroundElement, ...textElements],
       updatedAt: new Date(),
     };
     
@@ -240,20 +290,57 @@ export function useMemeCreator(): UseMemeCreatorReturn {
         createdAt: new Date(),
       };
       
-      storageService.saveTemplate(template);
+      await storageService.saveTemplate(template);
       setTemplates(prev => [...prev, template]);
     } catch (err) {
       setError('Failed to save template');
     }
   }, [currentProject]);
 
-  // Delete template
-  const deleteTemplate = useCallback((templateId: string) => {
+  // Save template directly
+  const saveTemplate = useCallback(async (template: MemeTemplate) => {
     try {
-      storageService.deleteTemplate(templateId);
+      await storageService.saveTemplate(template);
+      setTemplates(prev => [...prev, template]);
+    } catch (error) {
+      console.error('Failed to save template:', error);
+      setError('Failed to save template');
+    }
+  }, []);
+
+  // Upload template
+  const uploadTemplate = useCallback(async (file: File, name: string, width: number, height: number): Promise<MemeTemplate> => {
+    try {
+      const template = await storageService.uploadTemplate(file, name, width, height);
+      setTemplates(prev => [...prev, template]);
+      return template;
+    } catch (error) {
+      console.error('Failed to upload template:', error);
+      setError('Failed to upload template');
+      throw error;
+    }
+  }, []);
+
+  // Delete template
+  const deleteTemplate = useCallback(async (templateId: string) => {
+    try {
+      await storageService.deleteTemplate(templateId);
       setTemplates(prev => prev.filter(t => t.id !== templateId));
     } catch (err) {
       setError('Failed to delete template');
+    }
+  }, []);
+
+  // Refresh templates
+  const refreshTemplates = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const loadedTemplates = await storageService.getTemplates();
+      setTemplates(loadedTemplates);
+    } catch (err) {
+      setError('Failed to refresh templates');
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -287,31 +374,75 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     setSelectedElement(newElement);
   }, [currentProject, addToHistory]);
 
-  // Add image element
+  // Add image element with original dimensions
   const addImageElement = useCallback((src: string) => {
     if (!currentProject) return;
     
-    const newElement: CanvasElement = {
-      id: generateId(),
-      type: 'image',
-      x: 50,
-      y: 50,
-      width: 200,
-      height: 200,
-      rotation: 0,
-      opacity: 1,
-      data: { src },
+    // Create a temporary image to get original dimensions
+    const img = new Image();
+    img.onload = () => {
+      // Calculate the next image layer number
+      const imageElements = currentProject.elements.filter(el => el.type === 'image');
+      const nextImageNumber = imageElements.length + 1;
+      
+      const newElement: CanvasElement = {
+        id: generateId(),
+        type: 'image',
+        x: 50,
+        y: 50,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+        rotation: 0,
+        opacity: 1,
+        data: { 
+          src,
+          originalWidth: img.naturalWidth,
+          originalHeight: img.naturalHeight,
+          resizable: true,
+          name: `Image Layer ${nextImageNumber}`
+        },
+      };
+      
+      const updatedProject = {
+        ...currentProject,
+        elements: [...currentProject.elements, newElement],
+        updatedAt: new Date(),
+      };
+      
+      setCurrentProject(updatedProject);
+      addToHistory(updatedProject);
+      setSelectedElement(newElement);
     };
     
-    const updatedProject = {
-      ...currentProject,
-      elements: [...currentProject.elements, newElement],
-      updatedAt: new Date(),
+    img.onerror = () => {
+      // Fallback to default size if image fails to load
+      const newElement: CanvasElement = {
+        id: generateId(),
+        type: 'image',
+        x: 50,
+        y: 50,
+        width: 200,
+        height: 200,
+        rotation: 0,
+        opacity: 1,
+        data: { 
+          src,
+          resizable: true
+        },
+      };
+      
+      const updatedProject = {
+        ...currentProject,
+        elements: [...currentProject.elements, newElement],
+        updatedAt: new Date(),
+      };
+      
+      setCurrentProject(updatedProject);
+      addToHistory(updatedProject);
+      setSelectedElement(newElement);
     };
     
-    setCurrentProject(updatedProject);
-    addToHistory(updatedProject);
-    setSelectedElement(newElement);
+    img.src = src;
   }, [currentProject, addToHistory]);
 
   // Add shape element
@@ -348,7 +479,7 @@ export function useMemeCreator(): UseMemeCreatorReturn {
   }, [currentProject, addToHistory]);
 
   // Update element
-  const updateElement = useCallback((updatedElement: CanvasElement) => {
+  const updateElement = useCallback((updatedElement: CanvasElement, addToHistoryFlag?: boolean) => {
     if (!currentProject) return;
     
     const updatedProject = {
@@ -363,7 +494,12 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     if (selectedElement?.id === updatedElement.id) {
       setSelectedElement(updatedElement);
     }
-  }, [currentProject, selectedElement]);
+    
+    // Add to history if flag is true
+    if (addToHistoryFlag) {
+      addToHistory(updatedProject);
+    }
+  }, [currentProject, selectedElement, addToHistory]);
 
   // Delete element
   const deleteElement = useCallback((elementId: string) => {
@@ -413,16 +549,133 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     setSelectedElement(duplicatedElement);
   }, [currentProject, addToHistory]);
 
+  // Reorder elements
+  const reorderElements = useCallback((elements: CanvasElement[]) => {
+    if (!currentProject) return;
+    
+    const updatedProject = {
+      ...currentProject,
+      elements: elements,
+      updatedAt: new Date(),
+    };
+    
+    setCurrentProject(updatedProject);
+    addToHistory(updatedProject);
+  }, [currentProject, addToHistory]);
+
+  // Group management
+  const createGroup = useCallback((elementIds: string[], name?: string) => {
+    if (!currentProject) return;
+    
+    const newGroup: LayerGroup = {
+      id: generateId(),
+      name: name || 'New Group',
+      expanded: true,
+      elements: elementIds,
+    };
+    
+    const updatedProject = {
+      ...currentProject,
+      groups: [...(currentProject.groups || []), newGroup],
+      updatedAt: new Date(),
+    };
+    
+    setCurrentProject(updatedProject);
+    addToHistory(updatedProject);
+  }, [currentProject, addToHistory]);
+
+  const updateGroup = useCallback((groupId: string, updates: Partial<LayerGroup>) => {
+    if (!currentProject || !currentProject.groups) return;
+    
+    const updatedProject = {
+      ...currentProject,
+      groups: currentProject.groups.map(group => 
+        group.id === groupId ? { ...group, ...updates } : group
+      ),
+      updatedAt: new Date(),
+    };
+    
+    setCurrentProject(updatedProject);
+    addToHistory(updatedProject);
+  }, [currentProject, addToHistory]);
+
+  const deleteGroup = useCallback((groupId: string) => {
+    if (!currentProject || !currentProject.groups) return;
+    
+    const updatedProject = {
+      ...currentProject,
+      groups: currentProject.groups.filter(group => group.id !== groupId),
+      updatedAt: new Date(),
+    };
+    
+    setCurrentProject(updatedProject);
+    addToHistory(updatedProject);
+  }, [currentProject, addToHistory]);
+
+  const addToGroup = useCallback((groupId: string, elementIds: string[]) => {
+    if (!currentProject || !currentProject.groups) return;
+    
+    const updatedProject = {
+      ...currentProject,
+      groups: currentProject.groups.map(group => 
+        group.id === groupId 
+          ? { ...group, elements: [...group.elements, ...elementIds] }
+          : group
+      ),
+      updatedAt: new Date(),
+    };
+    
+    setCurrentProject(updatedProject);
+    addToHistory(updatedProject);
+  }, [currentProject, addToHistory]);
+
+  const removeFromGroup = useCallback((elementId: string) => {
+    if (!currentProject || !currentProject.groups) return;
+    
+    const updatedProject = {
+      ...currentProject,
+      groups: currentProject.groups.map(group => ({
+        ...group,
+        elements: group.elements.filter(id => id !== elementId)
+      })),
+      updatedAt: new Date(),
+    };
+    
+    setCurrentProject(updatedProject);
+    addToHistory(updatedProject);
+  }, [currentProject, addToHistory]);
+
+  const reorderElementsInGroup = useCallback((groupId: string, elementIds: string[]) => {
+    if (!currentProject || !currentProject.groups) return;
+    
+    const updatedProject = {
+      ...currentProject,
+      groups: currentProject.groups.map(group => 
+        group.id === groupId 
+          ? { ...group, elements: elementIds }
+          : group
+      ),
+      updatedAt: new Date(),
+    };
+    
+    setCurrentProject(updatedProject);
+    addToHistory(updatedProject);
+  }, [currentProject, addToHistory]);
+
   // Set canvas size
   const setCanvasSize = useCallback((width: number, height: number) => {
     if (!currentProject) return;
+    
+    // Ensure valid dimensions
+    const validWidth = Math.max(100, Math.min(5000, width));
+    const validHeight = Math.max(100, Math.min(5000, height));
     
     const updatedProject = {
       ...currentProject,
       canvas: {
         ...currentProject.canvas,
-        width,
-        height,
+        width: validWidth,
+        height: validHeight,
       },
       updatedAt: new Date(),
     };
@@ -440,6 +693,23 @@ export function useMemeCreator(): UseMemeCreatorReturn {
       canvas: {
         ...currentProject.canvas,
         backgroundColor: color,
+      },
+      updatedAt: new Date(),
+    };
+    
+    setCurrentProject(updatedProject);
+    addToHistory(updatedProject);
+  }, [currentProject, addToHistory]);
+
+  // Update canvas settings (combined function)
+  const updateCanvasSettings = useCallback((settings: Partial<CanvasSettings>) => {
+    if (!currentProject) return;
+    
+    const updatedProject = {
+      ...currentProject,
+      canvas: {
+        ...currentProject.canvas,
+        ...settings,
       },
       updatedAt: new Date(),
     };
@@ -495,7 +765,10 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     
     loadTemplate,
     saveAsTemplate,
+    saveTemplate,
+    uploadTemplate,
     deleteTemplate,
+    refreshTemplates,
     
     addTextElement,
     addImageElement,
@@ -504,9 +777,18 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     deleteElement,
     selectElement,
     duplicateElement,
+    reorderElements,
+    
+    createGroup,
+    updateGroup,
+    deleteGroup,
+    addToGroup,
+    removeFromGroup,
+    reorderElementsInGroup,
     
     setCanvasSize,
     setCanvasBackground,
+    updateCanvasSettings,
     
     undo,
     redo,

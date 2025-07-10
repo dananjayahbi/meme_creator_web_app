@@ -58,7 +58,7 @@ import {
   FullscreenExit as ExitFullscreenIcon,
 } from '@mui/icons-material';
 import { Canvas } from './Canvas';
-import { TemplateLibrary } from './TemplateLibrary';
+import { TemplateManager } from './TemplateManager';
 import { ToolsPanel } from './ToolsPanel';
 import { LayersPanel } from './LayersPanel';
 import { PropertiesPanel } from './PropertiesPanel';
@@ -68,7 +68,23 @@ import { ProjectManager } from './ProjectManager';
 import { useMemeCreator } from '../hooks/useMemeCreator';
 import { exportToImage } from '../lib/utils';
 import { CROP_RATIOS } from '../lib/constants';
-import { CanvasSettings } from '../types';
+import { CanvasSettings, CanvasElement, MemeProject, MemeTemplate } from '../types';
+
+interface CropData {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  aspectRatio?: any;
+}
+
+interface ExportOptions {
+  format: 'png' | 'jpg' | 'webp' | 'svg';
+  quality: number;
+  width: number;
+  height: number;
+  scale: number;
+}
 
 const DRAWER_WIDTH = 300;
 
@@ -82,14 +98,27 @@ export function MemeCreator() {
     createNewProject,
     saveProject,
     loadTemplate,
+    saveAsTemplate,
+    saveTemplate,
+    uploadTemplate,
+    deleteTemplate,
+    refreshTemplates,
     addTextElement,
     addImageElement,
+    addShapeElement,
     updateElement,
     deleteElement,
     selectElement,
     duplicateElement,
+    reorderElements,
+    createGroup,
+    updateGroup,
+    deleteGroup,
+    removeFromGroup,
+    reorderElementsInGroup,
     setCanvasSize,
     setCanvasBackground,
+    updateCanvasSettings,
     exportProject,
     undo,
     redo,
@@ -99,8 +128,9 @@ export function MemeCreator() {
 
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(true);
   const [rightDrawerOpen, setRightDrawerOpen] = useState(true);
-  const [activeLeftTab, setActiveLeftTab] = useState('templates');
+  const [activeLeftTab, setActiveLeftTab] = useState('tools');
   const [activeRightTab, setActiveRightTab] = useState('properties');
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [projectManagerOpen, setProjectManagerOpen] = useState(false);
@@ -109,6 +139,7 @@ export function MemeCreator() {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error' | 'warning' | 'info'>('info');
   const [zoom, setZoom] = useState(1);
+  const [newMemeConfirmOpen, setNewMemeConfirmOpen] = useState(false);
   
   const canvasRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -117,6 +148,22 @@ export function MemeCreator() {
     setSnackbarMessage(message);
     setSnackbarSeverity(severity);
     setSnackbarOpen(true);
+  };
+
+  const handleNewMeme = () => {
+    // Check if there's work to save
+    if (currentProject && currentProject.elements.length > 0) {
+      setNewMemeConfirmOpen(true);
+    } else {
+      createNewProject();
+      showSnackbar('New meme project created!', 'success');
+    }
+  };
+
+  const confirmNewMeme = () => {
+    createNewProject();
+    setNewMemeConfirmOpen(false);
+    showSnackbar('New meme project created!', 'success');
   };
 
   const handleExport = async () => {
@@ -157,14 +204,34 @@ export function MemeCreator() {
     showSnackbar(`Template "${template.name}" loaded`, 'success');
   };
 
+  const handleTemplateSave = async (template: MemeTemplate) => {
+    try {
+      // Save the template using the storage service directly
+      const { storageService } = await import('../lib/storage');
+      await storageService.saveTemplate(template);
+      showSnackbar(`Template "${template.name}" saved successfully!`, 'success');
+    } catch (error) {
+      showSnackbar('Error saving template', 'error');
+    }
+  };
+
+  const handleTemplateDelete = async (templateId: string) => {
+    try {
+      await deleteTemplate(templateId);
+      showSnackbar('Template deleted successfully!', 'success');
+    } catch (error) {
+      showSnackbar('Error deleting template', 'error');
+    }
+  };
+
   const handleCanvasSizeChange = (width: number, height: number) => {
     setCanvasSize(width, height);
     showSnackbar('Canvas size updated', 'success');
   };
 
   const handleCanvasSettingsChange = (settings: CanvasSettings) => {
-    setCanvasSize(settings.width, settings.height);
-    setCanvasBackground(settings.backgroundColor);
+    // Use the combined update function to avoid race conditions
+    updateCanvasSettings(settings);
     showSnackbar('Canvas settings updated', 'success');
   };
 
@@ -178,7 +245,7 @@ export function MemeCreator() {
   };
 
   const speedDialActions = [
-    { icon: <AddIcon />, name: 'New Project', action: createNewProject },
+    { icon: <AddIcon />, name: 'New Meme', action: handleNewMeme },
     { icon: <SaveIcon />, name: 'Save', action: handleSave },
     { icon: <DownloadIcon />, name: 'Export', action: () => setExportDialogOpen(true) },
     { icon: <UploadIcon />, name: 'Upload Image', action: () => fileInputRef.current?.click() },
@@ -187,7 +254,6 @@ export function MemeCreator() {
   ];
 
   const leftPanelTabs = [
-    { id: 'templates', label: 'Templates', icon: <ImageIcon /> },
     { id: 'tools', label: 'Tools', icon: <PaletteIcon /> },
     { id: 'layers', label: 'Layers', icon: <LayersIcon /> },
   ];
@@ -196,6 +262,13 @@ export function MemeCreator() {
     { id: 'properties', label: 'Properties', icon: <SettingsIcon /> },
     { id: 'projects', label: 'Projects', icon: <EditIcon /> },
   ];
+
+  // Refresh templates when template manager opens
+  useEffect(() => {
+    if (templateManagerOpen) {
+      refreshTemplates();
+    }
+  }, [templateManagerOpen, refreshTemplates]);
 
   if (isLoading) {
     return (
@@ -223,6 +296,33 @@ export function MemeCreator() {
           </Typography>
 
           <Stack direction="row" spacing={1}>
+            <Button
+              color="inherit"
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={handleNewMeme}
+              sx={{ 
+                borderColor: 'rgba(255, 255, 255, 0.3)',
+                '&:hover': {
+                  borderColor: 'rgba(255, 255, 255, 0.5)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                }
+              }}
+            >
+              New Meme
+            </Button>
+            <Button
+              color="inherit"
+              startIcon={<ImageIcon />}
+              onClick={() => setTemplateManagerOpen(true)}
+              sx={{ 
+                '& .MuiButton-startIcon': {
+                  marginRight: 1
+                }
+              }}
+            >
+              Templates
+            </Button>
             <Button
               color="inherit"
               startIcon={<UndoIcon />}
@@ -296,7 +396,13 @@ export function MemeCreator() {
                 size="small"
                 startIcon={tab.icon}
                 onClick={() => setActiveLeftTab(tab.id)}
-                sx={{ flex: 1 }}
+                sx={{ 
+                  flex: 1, 
+                  minWidth: 0,
+                  '& .MuiButton-startIcon': {
+                    marginRight: 0.5
+                  }
+                }}
               >
                 {tab.label}
               </Button>
@@ -305,30 +411,37 @@ export function MemeCreator() {
           
           <Divider sx={{ mb: 2 }} />
           
-          {activeLeftTab === 'templates' && (
-            <TemplateLibrary
-              templates={templates}
-              onSelectTemplate={handleTemplateSelect}
-            />
-          )}
-          
           {activeLeftTab === 'tools' && (
             <ToolsPanel
+              selectedElement={selectedElement || undefined}
+              onUpdateElement={updateElement}
               onAddText={addTextElement}
               onAddImage={() => fileInputRef.current?.click()}
-              onCrop={() => setCropDialogOpen(true)}
-              zoom={zoom}
-              onZoomChange={setZoom}
+              onAddShape={addShapeElement}
+              onDeleteElement={() => selectedElement && deleteElement(selectedElement.id)}
+              onDuplicateElement={() => selectedElement && duplicateElement(selectedElement.id)}
+              onUndo={undo}
+              onRedo={redo}
+              canUndo={canUndo}
+              canRedo={canRedo}
             />
           )}
           
           {activeLeftTab === 'layers' && (
             <LayersPanel
               elements={currentProject?.elements || []}
-              selectedElement={selectedElement}
+              groups={currentProject?.groups || []}
+              selectedElement={selectedElement || undefined}
               onSelectElement={selectElement}
+              onUpdateElement={updateElement}
               onDeleteElement={deleteElement}
               onDuplicateElement={duplicateElement}
+              onReorderElements={reorderElements}
+              onCreateGroup={createGroup}
+              onUpdateGroup={updateGroup}
+              onDeleteGroup={deleteGroup}
+              onRemoveFromGroup={removeFromGroup}
+              onReorderElementsInGroup={reorderElementsInGroup}
             />
           )}
         </Box>
@@ -360,8 +473,8 @@ export function MemeCreator() {
         >
           <Box ref={canvasRef} sx={{ transform: `scale(${zoom})` }}>
             <Canvas
-              project={currentProject}
-              selectedElement={selectedElement}
+              project={currentProject || undefined}
+              selectedElement={selectedElement || undefined}
               onSelectElement={selectElement}
               onUpdateElement={updateElement}
               onDeleteElement={deleteElement}
@@ -405,7 +518,7 @@ export function MemeCreator() {
           
           {activeRightTab === 'properties' && (
             <PropertiesPanel
-              selectedElement={selectedElement}
+              selectedElement={selectedElement || undefined}
               canvasSettings={currentProject?.canvas || { width: 800, height: 600, backgroundColor: '#ffffff' }}
               onUpdateElement={updateElement}
               onUpdateCanvasSettings={handleCanvasSettingsChange}
@@ -414,10 +527,14 @@ export function MemeCreator() {
           
           {activeRightTab === 'projects' && (
             <ProjectManager
-              currentProject={currentProject}
-              onSave={handleSave}
-              onNew={createNewProject}
-              onExport={() => setExportDialogOpen(true)}
+              open={true}
+              onClose={() => setActiveRightTab('properties')}
+              onLoadProject={(project: MemeProject) => {
+                // TODO: Implement project loading
+                console.log('Load project:', project);
+              }}
+              onNewProject={createNewProject}
+              currentProject={currentProject || undefined}
             />
           )}
         </Box>
@@ -443,15 +560,28 @@ export function MemeCreator() {
       <CropDialog
         open={cropDialogOpen}
         onClose={() => setCropDialogOpen(false)}
-        canvasSettings={currentProject?.canvas}
-        onApply={handleCanvasSizeChange}
+        onCrop={(cropData: CropData) => {
+          if (cropData.aspectRatio) {
+            const { width, height } = cropData.aspectRatio;
+            setCanvasSize(width, height);
+            showSnackbar('Canvas size updated to ' + width + 'x' + height, 'success');
+          }
+          setCropDialogOpen(false);
+        }}
+        currentWidth={currentProject?.canvas?.width || 800}
+        currentHeight={currentProject?.canvas?.height || 600}
       />
       
       <ExportDialog
         open={exportDialogOpen}
         onClose={() => setExportDialogOpen(false)}
-        onExport={handleExport}
-        project={currentProject}
+        onExport={async (exportOptions: ExportOptions) => {
+          // TODO: Implement export with options
+          console.log('Export options:', exportOptions);
+          await handleExport();
+        }}
+        canvasWidth={currentProject?.canvas?.width || 800}
+        canvasHeight={currentProject?.canvas?.height || 600}
       />
 
       {/* Hidden file input */}
@@ -479,12 +609,49 @@ export function MemeCreator() {
         </Alert>
       </Snackbar>
 
+      {/* Template Manager */}
+      <TemplateManager
+        open={templateManagerOpen}
+        onClose={() => setTemplateManagerOpen(false)}
+        templates={templates}
+        onSelectTemplate={handleTemplateSelect}
+        onUploadTemplate={uploadTemplate}
+        onDeleteTemplate={deleteTemplate}
+        isLoading={isLoading}
+      />
+
       {/* Error Display */}
       {error && (
         <Alert severity="error" sx={{ position: 'fixed', top: 100, right: 16, zIndex: 9999 }}>
           {error}
         </Alert>
       )}
+
+      {/* New Meme Confirmation Dialog */}
+      <Dialog
+        open={newMemeConfirmOpen}
+        onClose={() => setNewMemeConfirmOpen(false)}
+        aria-labelledby="new-meme-dialog-title"
+        aria-describedby="new-meme-dialog-description"
+      >
+        <DialogTitle id="new-meme-dialog-title">
+          Create New Meme?
+        </DialogTitle>
+        <DialogContent>
+          <Typography id="new-meme-dialog-description">
+            You have unsaved changes. Creating a new meme will clear your current work. 
+            Do you want to continue?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNewMemeConfirmOpen(false)} color="primary">
+            Cancel
+          </Button>
+          <Button onClick={confirmNewMeme} color="primary" variant="contained">
+            Create New Meme
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

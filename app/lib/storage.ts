@@ -7,32 +7,60 @@ const STORAGE_KEYS = {
 };
 
 export const storageService = {
-  // Template management
-  getTemplates: (): MemeTemplate[] => {
-    if (typeof window === 'undefined') return [];
-    const stored = localStorage.getItem(STORAGE_KEYS.TEMPLATES);
-    return stored ? JSON.parse(stored) : [];
+  // Template management - now uses API
+  getTemplates: async (): Promise<MemeTemplate[]> => {
+    try {
+      const response = await fetch('/api/templates');
+      const data = await response.json();
+      return data.templates || [];
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+      return [];
+    }
   },
 
-  saveTemplate: (template: MemeTemplate): void => {
+  saveTemplate: async (template: MemeTemplate): Promise<void> => {
+    // This is now handled by uploadTemplate for new templates
+    // For existing templates, we update metadata only
     if (typeof window === 'undefined') return;
-    const templates = storageService.getTemplates();
+    const templates = await storageService.getTemplates();
     const existingIndex = templates.findIndex(t => t.id === template.id);
     
     if (existingIndex >= 0) {
+      // Update existing template metadata
       templates[existingIndex] = template;
-    } else {
-      templates.push(template);
+      localStorage.setItem(STORAGE_KEYS.TEMPLATES + '_cache', JSON.stringify(templates));
     }
-    
-    localStorage.setItem(STORAGE_KEYS.TEMPLATES, JSON.stringify(templates));
   },
 
-  deleteTemplate: (templateId: string): void => {
-    if (typeof window === 'undefined') return;
-    const templates = storageService.getTemplates();
-    const filtered = templates.filter(t => t.id !== templateId);
-    localStorage.setItem(STORAGE_KEYS.TEMPLATES, JSON.stringify(filtered));
+  uploadTemplate: async (file: File, name: string, width: number, height: number): Promise<MemeTemplate> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', name);
+    formData.append('width', width.toString());
+    formData.append('height', height.toString());
+    
+    const response = await fetch('/api/templates', {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to upload template');
+    }
+    
+    const data = await response.json();
+    return data.template;
+  },
+
+  deleteTemplate: async (templateId: string): Promise<void> => {
+    const response = await fetch(`/api/templates?id=${templateId}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to delete template');
+    }
   },
 
   // Project management

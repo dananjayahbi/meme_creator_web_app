@@ -47,6 +47,7 @@ export interface MemeProject {
   template?: MemeTemplate;
   canvas: CanvasSettings;
   elements: CanvasElement[];
+  groups?: LayerGroup[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -78,4 +79,11 @@ export interface LayerItem {
   visible: boolean;
   locked: boolean;
   order: number;
+}
+
+export interface LayerGroup {
+  id: string;
+  name: string;
+  expanded: boolean;
+  elements: string[]; // Element IDs
 }

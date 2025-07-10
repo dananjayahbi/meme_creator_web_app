@@ -144,6 +144,30 @@ export function CropDialog({
     onClose();
   };
 
+  // Manual edge adjustment handlers
+  const handleEdgeAdjustment = (edge: 'top' | 'bottom' | 'left' | 'right', delta: number) => {
+    const newCropData = { ...cropData };
+    
+    switch (edge) {
+      case 'top':
+        newCropData.y = Math.max(0, newCropData.y + delta);
+        newCropData.height = Math.max(50, newCropData.height - delta);
+        break;
+      case 'bottom':
+        newCropData.height = Math.min(currentHeight - newCropData.y, Math.max(50, newCropData.height + delta));
+        break;
+      case 'left':
+        newCropData.x = Math.max(0, newCropData.x + delta);
+        newCropData.width = Math.max(50, newCropData.width - delta);
+        break;
+      case 'right':
+        newCropData.width = Math.min(currentWidth - newCropData.x, Math.max(50, newCropData.width + delta));
+        break;
+    }
+    
+    setCropData(newCropData);
+  };
+
   const previewStyle = {
     width: '100%',
     height: 300,
@@ -344,6 +368,61 @@ export function CropDialog({
                 />
               )}
             </Typography>
+          </Box>
+        </Box>
+
+        {/* Manual Edge Controls */}
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Manual Edge Adjustment
+          </Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 2, maxWidth: 300, mx: 'auto' }}>
+            {/* Top */}
+            <Box sx={{ gridColumn: '2', textAlign: 'center' }}>
+              <Typography variant="caption" display="block">Top</Typography>
+              <IconButton size="small" onClick={() => handleEdgeAdjustment('top', -5)}>
+                <ZoomOutIcon />
+              </IconButton>
+              <IconButton size="small" onClick={() => handleEdgeAdjustment('top', 5)}>
+                <ZoomInIcon />
+              </IconButton>
+            </Box>
+            
+            {/* Left and Right */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="caption" display="block">Left</Typography>
+                <IconButton size="small" onClick={() => handleEdgeAdjustment('left', -5)}>
+                  <ZoomOutIcon />
+                </IconButton>
+                <IconButton size="small" onClick={() => handleEdgeAdjustment('left', 5)}>
+                  <ZoomInIcon />
+                </IconButton>
+              </Box>
+            </Box>
+            
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="caption" display="block">Right</Typography>
+                <IconButton size="small" onClick={() => handleEdgeAdjustment('right', -5)}>
+                  <ZoomOutIcon />
+                </IconButton>
+                <IconButton size="small" onClick={() => handleEdgeAdjustment('right', 5)}>
+                  <ZoomInIcon />
+                </IconButton>
+              </Box>
+            </Box>
+            
+            {/* Bottom */}
+            <Box sx={{ gridColumn: '2', textAlign: 'center' }}>
+              <Typography variant="caption" display="block">Bottom</Typography>
+              <IconButton size="small" onClick={() => handleEdgeAdjustment('bottom', -5)}>
+                <ZoomOutIcon />
+              </IconButton>
+              <IconButton size="small" onClick={() => handleEdgeAdjustment('bottom', 5)}>
+                <ZoomInIcon />
+              </IconButton>
+            </Box>
           </Box>
         </Box>
       </DialogContent>

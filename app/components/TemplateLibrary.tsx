@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import {
   Box,
-  Grid,
   Card,
   CardMedia,
   CardContent,
@@ -40,133 +39,8 @@ interface TemplateLibraryProps {
   onDeleteTemplate?: (templateId: string) => void;
 }
 
-const DEFAULT_TEMPLATES: MemeTemplate[] = [
-  {
-    id: '1',
-    name: 'Distracted Boyfriend',
-    imageUrl: '/api/placeholder/400/300',
-    width: 400,
-    height: 300,
-    textBoxes: [
-      {
-        id: '1',
-        text: 'Text 1',
-        x: 50,
-        y: 50,
-        width: 100,
-        height: 30,
-        fontSize: 20,
-        fontFamily: 'Arial',
-        color: '#ffffff',
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        borderColor: '#000000',
-        borderWidth: 0,
-        textAlign: 'center',
-        fontWeight: 'bold',
-        fontStyle: 'normal',
-        rotation: 0,
-        opacity: 1,
-      },
-      {
-        id: '2',
-        text: 'Text 2',
-        x: 250,
-        y: 50,
-        width: 100,
-        height: 30,
-        fontSize: 20,
-        fontFamily: 'Arial',
-        color: '#ffffff',
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        borderColor: '#000000',
-        borderWidth: 0,
-        textAlign: 'center',
-        fontWeight: 'bold',
-        fontStyle: 'normal',
-        rotation: 0,
-        opacity: 1,
-      },
-    ],
-    createdAt: new Date(),
-  },
-  {
-    id: '2',
-    name: 'Drake Pointing',
-    imageUrl: '/api/placeholder/400/400',
-    width: 400,
-    height: 400,
-    textBoxes: [
-      {
-        id: '1',
-        text: 'No',
-        x: 200,
-        y: 100,
-        width: 180,
-        height: 40,
-        fontSize: 24,
-        fontFamily: 'Arial',
-        color: '#000000',
-        backgroundColor: 'transparent',
-        borderColor: '#000000',
-        borderWidth: 0,
-        textAlign: 'left',
-        fontWeight: 'bold',
-        fontStyle: 'normal',
-        rotation: 0,
-        opacity: 1,
-      },
-      {
-        id: '2',
-        text: 'Yes',
-        x: 200,
-        y: 300,
-        width: 180,
-        height: 40,
-        fontSize: 24,
-        fontFamily: 'Arial',
-        color: '#000000',
-        backgroundColor: 'transparent',
-        borderColor: '#000000',
-        borderWidth: 0,
-        textAlign: 'left',
-        fontWeight: 'bold',
-        fontStyle: 'normal',
-        rotation: 0,
-        opacity: 1,
-      },
-    ],
-    createdAt: new Date(),
-  },
-  {
-    id: '3',
-    name: 'This is Fine',
-    imageUrl: '/api/placeholder/500/300',
-    width: 500,
-    height: 300,
-    textBoxes: [
-      {
-        id: '1',
-        text: 'This is fine',
-        x: 50,
-        y: 250,
-        width: 200,
-        height: 40,
-        fontSize: 18,
-        fontFamily: 'Arial',
-        color: '#000000',
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        borderColor: '#000000',
-        borderWidth: 1,
-        textAlign: 'center',
-        fontWeight: 'normal',
-        fontStyle: 'normal',
-        rotation: 0,
-        opacity: 1,
-      },
-    ],
-    createdAt: new Date(),
-  },
-];
+// Remove default templates - all templates now come from the backend
+const DEFAULT_TEMPLATES: MemeTemplate[] = [];
 
 export function TemplateLibrary({
   templates,
@@ -180,6 +54,7 @@ export function TemplateLibrary({
   const [editingTemplate, setEditingTemplate] = useState<MemeTemplate | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<MemeTemplate | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const allTemplates = [...DEFAULT_TEMPLATES, ...templates];
 
@@ -187,7 +62,7 @@ export function TemplateLibrary({
     template.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const categories = ['all', 'popular', 'recent', 'custom'];
+  const categories = ['all', 'recent', 'custom'];
 
   const handleTemplateClick = (template: MemeTemplate) => {
     onSelectTemplate(template);
@@ -252,6 +127,44 @@ export function TemplateLibrary({
     setCreateDialogOpen(true);
   };
 
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        
+        // Create a new template from the uploaded image
+        const newTemplate: MemeTemplate = {
+          id: generateId(),
+          name: file.name.split('.')[0] || 'Uploaded Template',
+          imageUrl: result,
+          width: 400, // Default width, will be updated when image loads
+          height: 300, // Default height, will be updated when image loads
+          textBoxes: [],
+          createdAt: new Date(),
+        };
+
+        // Get actual image dimensions
+        const img = new Image();
+        img.onload = () => {
+          newTemplate.width = img.width;
+          newTemplate.height = img.height;
+          
+          if (onSaveTemplate) {
+            onSaveTemplate(newTemplate);
+          }
+        };
+        img.src = result;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
     <Box>
       {/* Search and Filter */}
@@ -267,7 +180,7 @@ export function TemplateLibrary({
           }}
         />
         
-        <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+        <Stack direction="row" spacing={1} sx={{ mt: 1, mb: 1 }}>
           {categories.map((category) => (
             <Chip
               key={category}
@@ -278,23 +191,43 @@ export function TemplateLibrary({
             />
           ))}
         </Stack>
+
+        {/* Upload Actions */}
+        <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<UploadIcon />}
+            onClick={handleUploadClick}
+          >
+            Upload Template
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={handleCreateNew}
+          >
+            Create New
+          </Button>
+        </Stack>
       </Box>
 
       {/* Templates Grid */}
-      <Grid container spacing={2}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
         {filteredTemplates.map((template) => (
-          <Grid item xs={12} sm={6} key={template.id}>
-            <Card
-              sx={{
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: 4,
-                },
-              }}
-              onClick={() => handleTemplateClick(template)}
-            >
+          <Card
+            key={template.id}
+            sx={{
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: 4,
+              },
+            }}
+            onClick={() => handleTemplateClick(template)}
+          >
               <CardMedia
                 component="img"
                 height="140"
@@ -327,9 +260,8 @@ export function TemplateLibrary({
                 </Typography>
               </CardContent>
             </Card>
-          </Grid>
         ))}
-      </Grid>
+      </Box>
 
       {/* Empty State */}
       {filteredTemplates.length === 0 && (
@@ -378,6 +310,14 @@ export function TemplateLibrary({
         }}
         onSave={handleSave}
         initialData={editingTemplate}
+      />
+      {/* Hidden file input for image upload */}
+      <input
+        type="file"
+        accept="image/*"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        onChange={handleImageUpload}
       />
     </Box>
   );
