@@ -39,6 +39,7 @@ interface UseMemeCreatorReturn {
   deleteElement: (elementId: string) => void;
   selectElement: (element: CanvasElement) => void;
   duplicateElement: (elementId: string) => void;
+  reorderElements: (elements: CanvasElement[]) => void;
   
   // Canvas management
   setCanvasSize: (width: number, height: number) => void;
@@ -372,6 +373,10 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     // Create a temporary image to get original dimensions
     const img = new Image();
     img.onload = () => {
+      // Calculate the next image layer number
+      const imageElements = currentProject.elements.filter(el => el.type === 'image');
+      const nextImageNumber = imageElements.length + 1;
+      
       const newElement: CanvasElement = {
         id: generateId(),
         type: 'image',
@@ -385,7 +390,8 @@ export function useMemeCreator(): UseMemeCreatorReturn {
           src,
           originalWidth: img.naturalWidth,
           originalHeight: img.naturalHeight,
-          resizable: true
+          resizable: true,
+          name: `Image Layer ${nextImageNumber}`
         },
       };
       
@@ -530,6 +536,20 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     setSelectedElement(duplicatedElement);
   }, [currentProject, addToHistory]);
 
+  // Reorder elements
+  const reorderElements = useCallback((elements: CanvasElement[]) => {
+    if (!currentProject) return;
+    
+    const updatedProject = {
+      ...currentProject,
+      elements: elements,
+      updatedAt: new Date(),
+    };
+    
+    setCurrentProject(updatedProject);
+    addToHistory(updatedProject);
+  }, [currentProject, addToHistory]);
+
   // Set canvas size
   const setCanvasSize = useCallback((width: number, height: number) => {
     if (!currentProject) return;
@@ -645,6 +665,7 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     deleteElement,
     selectElement,
     duplicateElement,
+    reorderElements,
     
     setCanvasSize,
     setCanvasBackground,

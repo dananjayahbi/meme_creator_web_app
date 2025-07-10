@@ -110,6 +110,7 @@ export function MemeCreator() {
     deleteElement,
     selectElement,
     duplicateElement,
+    reorderElements,
     setCanvasSize,
     setCanvasBackground,
     updateCanvasSettings,
@@ -429,10 +430,7 @@ export function MemeCreator() {
               onUpdateElement={updateElement}
               onDeleteElement={deleteElement}
               onDuplicateElement={duplicateElement}
-              onReorderElements={(elements: CanvasElement[]) => {
-                // TODO: Implement layer reordering
-                console.log('Reorder elements:', elements);
-              }}
+              onReorderElements={reorderElements}
             />
           )}
         </Box>

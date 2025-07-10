@@ -115,7 +115,7 @@ export function LayersPanel({
       case 'text':
         return element.data?.text ? `"${element.data.text.substring(0, 15)}..."` : 'Text Layer';
       case 'image':
-        return 'Image Layer';
+        return 'Image Layer'; // Fallback if name is not set
       case 'shape':
         return element.data?.shape ? `${element.data.shape} Shape` : 'Shape Layer';
       default:
@@ -238,15 +238,23 @@ export function LayersPanel({
 
   // Layer reordering
   const moveElement = (elementId: string, direction: 'up' | 'down') => {
-    const currentIndex = elements.findIndex(el => el.id === elementId);
-    if (currentIndex === -1) return;
+    // Find the element in the ungrouped elements array
+    const ungroupedIndex = ungroupedElements.findIndex(el => el.id === elementId);
+    if (ungroupedIndex === -1) return;
 
-    const newElements = [...elements];
-    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    const newUngroupedElements = [...ungroupedElements];
+    const targetIndex = direction === 'up' ? ungroupedIndex - 1 : ungroupedIndex + 1;
     
-    if (targetIndex >= 0 && targetIndex < newElements.length) {
-      [newElements[currentIndex], newElements[targetIndex]] = [newElements[targetIndex], newElements[currentIndex]];
-      onReorderElements(newElements);
+    if (targetIndex >= 0 && targetIndex < newUngroupedElements.length) {
+      [newUngroupedElements[ungroupedIndex], newUngroupedElements[targetIndex]] = 
+        [newUngroupedElements[targetIndex], newUngroupedElements[ungroupedIndex]];
+      
+      // Reconstruct the full elements array
+      const groupedElementIds = new Set(groups.flatMap(group => group.elements));
+      const groupedElements = elements.filter(el => groupedElementIds.has(el.id));
+      const reorderedElements = [...groupedElements, ...newUngroupedElements];
+      
+      onReorderElements(reorderedElements);
     }
   };
 
@@ -280,7 +288,7 @@ export function LayersPanel({
       return;
     }
 
-    // Work with ungrouped elements only
+    // Work with ungrouped elements array for drag/drop indices
     const newUngroupedElements = [...ungroupedElements];
     const draggedElement = newUngroupedElements[draggedIndex];
     
@@ -293,8 +301,8 @@ export function LayersPanel({
     
     // Create new full elements array by combining grouped and ungrouped elements
     const groupedElementIds = new Set(groups.flatMap(group => group.elements));
-    const allElements = elements.filter(el => groupedElementIds.has(el.id));
-    const reorderedElements = [...allElements, ...newUngroupedElements];
+    const groupedElements = elements.filter(el => groupedElementIds.has(el.id));
+    const reorderedElements = [...groupedElements, ...newUngroupedElements];
     
     onReorderElements(reorderedElements);
     setDraggedIndex(null);
@@ -470,7 +478,8 @@ export function LayersPanel({
                               alignItems: 'center', 
                               justifyContent: 'space-between',
                               width: '100%',
-                              mb: 1
+                              mb: 1,
+                              pl: 1  // Consistent padding to align with other rows
                             }}>
                               {/* Left side: Checkbox + Group indicator */}
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -677,7 +686,8 @@ export function LayersPanel({
                   alignItems: 'center', 
                   justifyContent: 'space-between',
                   width: '100%',
-                  mb: 1
+                  mb: 1,
+                  pl: 1  // Consistent padding to align with other rows
                 }}>
                   {/* Left side: Checkbox + Drag Handle */}
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
