@@ -133,6 +133,7 @@ export function MemeCreator() {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error' | 'warning' | 'info'>('info');
   const [zoom, setZoom] = useState(1);
+  const [newMemeConfirmOpen, setNewMemeConfirmOpen] = useState(false);
   
   const canvasRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -141,6 +142,22 @@ export function MemeCreator() {
     setSnackbarMessage(message);
     setSnackbarSeverity(severity);
     setSnackbarOpen(true);
+  };
+
+  const handleNewMeme = () => {
+    // Check if there's work to save
+    if (currentProject && currentProject.elements.length > 0) {
+      setNewMemeConfirmOpen(true);
+    } else {
+      createNewProject();
+      showSnackbar('New meme project created!', 'success');
+    }
+  };
+
+  const confirmNewMeme = () => {
+    createNewProject();
+    setNewMemeConfirmOpen(false);
+    showSnackbar('New meme project created!', 'success');
   };
 
   const handleExport = async () => {
@@ -222,7 +239,7 @@ export function MemeCreator() {
   };
 
   const speedDialActions = [
-    { icon: <AddIcon />, name: 'New Project', action: createNewProject },
+    { icon: <AddIcon />, name: 'New Meme', action: handleNewMeme },
     { icon: <SaveIcon />, name: 'Save', action: handleSave },
     { icon: <DownloadIcon />, name: 'Export', action: () => setExportDialogOpen(true) },
     { icon: <UploadIcon />, name: 'Upload Image', action: () => fileInputRef.current?.click() },
@@ -273,6 +290,21 @@ export function MemeCreator() {
           </Typography>
 
           <Stack direction="row" spacing={1}>
+            <Button
+              color="inherit"
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={handleNewMeme}
+              sx={{ 
+                borderColor: 'rgba(255, 255, 255, 0.3)',
+                '&:hover': {
+                  borderColor: 'rgba(255, 255, 255, 0.5)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                }
+              }}
+            >
+              New Meme
+            </Button>
             <Button
               color="inherit"
               startIcon={<ImageIcon />}
@@ -585,6 +617,32 @@ export function MemeCreator() {
           {error}
         </Alert>
       )}
+
+      {/* New Meme Confirmation Dialog */}
+      <Dialog
+        open={newMemeConfirmOpen}
+        onClose={() => setNewMemeConfirmOpen(false)}
+        aria-labelledby="new-meme-dialog-title"
+        aria-describedby="new-meme-dialog-description"
+      >
+        <DialogTitle id="new-meme-dialog-title">
+          Create New Meme?
+        </DialogTitle>
+        <DialogContent>
+          <Typography id="new-meme-dialog-description">
+            You have unsaved changes. Creating a new meme will clear your current work. 
+            Do you want to continue?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNewMemeConfirmOpen(false)} color="primary">
+            Cancel
+          </Button>
+          <Button onClick={confirmNewMeme} color="primary" variant="contained">
+            Create New Meme
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
