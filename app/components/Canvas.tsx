@@ -9,7 +9,7 @@ interface CanvasProps {
   project?: MemeProject;
   selectedElement?: CanvasElement;
   onSelectElement: (element: CanvasElement) => void;
-  onUpdateElement: (element: CanvasElement) => void;
+  onUpdateElement: (element: CanvasElement, addToHistory?: boolean) => void;
   onDeleteElement: (elementId: string) => void;
 }
 
@@ -36,6 +36,7 @@ export function Canvas({
     startY: number;
     resizeHandle?: string;
     originalElement?: CanvasElement;
+    initialElement?: CanvasElement; // Store initial state for history
   }>({
     isDragging: false,
     isResizing: false,
@@ -68,6 +69,7 @@ export function Canvas({
         startX: e.clientX - rect.left - element.x,
         startY: e.clientY - rect.top - element.y,
         originalElement: element,
+        initialElement: { ...element }, // Store initial state
       });
     }
   };
@@ -94,6 +96,7 @@ export function Canvas({
         startY: e.clientY - rect.top,
         resizeHandle: handle,
         originalElement: { ...element },
+        initialElement: { ...element }, // Store initial state
       });
     }
   };
@@ -177,6 +180,25 @@ export function Canvas({
   };
 
   const handleMouseUp = () => {
+    // If we were dragging or resizing, add to history
+    if ((dragState.isDragging || dragState.isResizing) && dragState.initialElement && dragState.elementId) {
+      const currentElement = elements.find(el => el.id === dragState.elementId);
+      
+      // Check if the element actually changed
+      if (currentElement && dragState.initialElement) {
+        const hasChanged = 
+          currentElement.x !== dragState.initialElement.x ||
+          currentElement.y !== dragState.initialElement.y ||
+          currentElement.width !== dragState.initialElement.width ||
+          currentElement.height !== dragState.initialElement.height;
+        
+        if (hasChanged) {
+          // Update element with history flag
+          onUpdateElement(currentElement, true);
+        }
+      }
+    }
+    
     setDragState({
       isDragging: false,
       isResizing: false,

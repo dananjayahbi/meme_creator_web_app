@@ -42,7 +42,7 @@ import { CROP_RATIOS } from '../lib/constants';
 interface PropertiesPanelProps {
   selectedElement?: CanvasElement;
   canvasSettings: CanvasSettings;
-  onUpdateElement: (element: CanvasElement) => void;
+  onUpdateElement: (element: CanvasElement, addToHistory?: boolean) => void;
   onUpdateCanvasSettings: (settings: CanvasSettings) => void;
 }
 
@@ -64,7 +64,7 @@ export function PropertiesPanel({
       ...selectedElement,
       [property]: value,
     };
-    onUpdateElement(updatedElement);
+    onUpdateElement(updatedElement, true); // Add to history
   };
 
   const handleElementDataUpdate = (property: string, value: any) => {
@@ -77,7 +77,7 @@ export function PropertiesPanel({
         [property]: value,
       },
     };
-    onUpdateElement(updatedElement);
+    onUpdateElement(updatedElement, true); // Add to history
   };
 
   const handleCanvasUpdate = (property: string, value: any) => {

@@ -258,7 +258,7 @@ export function ToolsPanel({
                     border: 1,
                     borderColor: 'divider',
                     borderRadius: 1,
-                    mb: 1,
+                    mb: 2,
                   }}
                 >
                   {shape.icon}

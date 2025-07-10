@@ -35,7 +35,7 @@ interface UseMemeCreatorReturn {
   addTextElement: () => void;
   addImageElement: (src: string) => void;
   addShapeElement: (shape: string) => void;
-  updateElement: (element: CanvasElement) => void;
+  updateElement: (element: CanvasElement, addToHistoryFlag?: boolean) => void;
   deleteElement: (elementId: string) => void;
   selectElement: (element: CanvasElement) => void;
   duplicateElement: (elementId: string) => void;
@@ -479,7 +479,7 @@ export function useMemeCreator(): UseMemeCreatorReturn {
   }, [currentProject, addToHistory]);
 
   // Update element
-  const updateElement = useCallback((updatedElement: CanvasElement) => {
+  const updateElement = useCallback((updatedElement: CanvasElement, addToHistoryFlag?: boolean) => {
     if (!currentProject) return;
     
     const updatedProject = {
@@ -494,7 +494,12 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     if (selectedElement?.id === updatedElement.id) {
       setSelectedElement(updatedElement);
     }
-  }, [currentProject, selectedElement]);
+    
+    // Add to history if flag is true
+    if (addToHistoryFlag) {
+      addToHistory(updatedProject);
+    }
+  }, [currentProject, selectedElement, addToHistory]);
 
   // Delete element
   const deleteElement = useCallback((elementId: string) => {

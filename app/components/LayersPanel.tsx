@@ -55,7 +55,7 @@ interface LayersPanelProps {
   groups: LayerGroup[];
   selectedElement?: CanvasElement;
   onSelectElement: (element: CanvasElement) => void;
-  onUpdateElement: (element: CanvasElement) => void;
+  onUpdateElement: (element: CanvasElement, addToHistory?: boolean) => void;
   onDeleteElement: (elementId: string) => void;
   onDuplicateElement: (elementId: string) => void;
   onReorderElements: (elements: CanvasElement[]) => void;
@@ -169,7 +169,7 @@ export function LayersPanel({
         visible: element.data?.visible !== false ? false : true,
       },
     };
-    onUpdateElement(updatedElement);
+    onUpdateElement(updatedElement, true); // Add to history
   };
 
   const toggleLock = (element: CanvasElement, event: React.MouseEvent) => {
@@ -181,7 +181,7 @@ export function LayersPanel({
         locked: element.data?.locked === true ? false : true,
       },
     };
-    onUpdateElement(updatedElement);
+    onUpdateElement(updatedElement, true); // Add to history
   };
 
   // Context menu handlers
@@ -222,7 +222,7 @@ export function LayersPanel({
             name: renameDialog.currentName,
           },
         };
-        onUpdateElement(updatedElement);
+        onUpdateElement(updatedElement, true); // Add to history
       }
     } else if (renameDialog.groupId) {
       onUpdateGroup(renameDialog.groupId, { name: renameDialog.currentName });
