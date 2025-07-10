@@ -111,6 +111,11 @@ export function MemeCreator() {
     selectElement,
     duplicateElement,
     reorderElements,
+    createGroup,
+    updateGroup,
+    deleteGroup,
+    removeFromGroup,
+    reorderElementsInGroup,
     setCanvasSize,
     setCanvasBackground,
     updateCanvasSettings,
@@ -425,12 +430,18 @@ export function MemeCreator() {
           {activeLeftTab === 'layers' && (
             <LayersPanel
               elements={currentProject?.elements || []}
+              groups={currentProject?.groups || []}
               selectedElement={selectedElement || undefined}
               onSelectElement={selectElement}
               onUpdateElement={updateElement}
               onDeleteElement={deleteElement}
               onDuplicateElement={duplicateElement}
               onReorderElements={reorderElements}
+              onCreateGroup={createGroup}
+              onUpdateGroup={updateGroup}
+              onDeleteGroup={deleteGroup}
+              onRemoveFromGroup={removeFromGroup}
+              onReorderElementsInGroup={reorderElementsInGroup}
             />
           )}
         </Box>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { MemeProject, MemeTemplate, CanvasElement } from '../types';
+import { MemeProject, MemeTemplate, CanvasElement, LayerGroup } from '../types';
 import { storageService } from '../lib/storage';
 import { generateId } from '../lib/utils';
 import { DEFAULT_CANVAS_SETTINGS, DEFAULT_TEXT_STYLE } from '../lib/constants';
@@ -40,6 +40,14 @@ interface UseMemeCreatorReturn {
   selectElement: (element: CanvasElement) => void;
   duplicateElement: (elementId: string) => void;
   reorderElements: (elements: CanvasElement[]) => void;
+  
+  // Group management
+  createGroup: (elementIds: string[], name?: string) => void;
+  updateGroup: (groupId: string, updates: Partial<LayerGroup>) => void;
+  deleteGroup: (groupId: string) => void;
+  addToGroup: (groupId: string, elementIds: string[]) => void;
+  removeFromGroup: (elementId: string) => void;
+  reorderElementsInGroup: (groupId: string, elementIds: string[]) => void;
   
   // Canvas management
   setCanvasSize: (width: number, height: number) => void;
@@ -550,6 +558,105 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     addToHistory(updatedProject);
   }, [currentProject, addToHistory]);
 
+  // Group management
+  const createGroup = useCallback((elementIds: string[], name?: string) => {
+    if (!currentProject) return;
+    
+    const newGroup: LayerGroup = {
+      id: generateId(),
+      name: name || 'New Group',
+      expanded: true,
+      elements: elementIds,
+    };
+    
+    const updatedProject = {
+      ...currentProject,
+      groups: [...(currentProject.groups || []), newGroup],
+      updatedAt: new Date(),
+    };
+    
+    setCurrentProject(updatedProject);
+    addToHistory(updatedProject);
+  }, [currentProject, addToHistory]);
+
+  const updateGroup = useCallback((groupId: string, updates: Partial<LayerGroup>) => {
+    if (!currentProject || !currentProject.groups) return;
+    
+    const updatedProject = {
+      ...currentProject,
+      groups: currentProject.groups.map(group => 
+        group.id === groupId ? { ...group, ...updates } : group
+      ),
+      updatedAt: new Date(),
+    };
+    
+    setCurrentProject(updatedProject);
+    addToHistory(updatedProject);
+  }, [currentProject, addToHistory]);
+
+  const deleteGroup = useCallback((groupId: string) => {
+    if (!currentProject || !currentProject.groups) return;
+    
+    const updatedProject = {
+      ...currentProject,
+      groups: currentProject.groups.filter(group => group.id !== groupId),
+      updatedAt: new Date(),
+    };
+    
+    setCurrentProject(updatedProject);
+    addToHistory(updatedProject);
+  }, [currentProject, addToHistory]);
+
+  const addToGroup = useCallback((groupId: string, elementIds: string[]) => {
+    if (!currentProject || !currentProject.groups) return;
+    
+    const updatedProject = {
+      ...currentProject,
+      groups: currentProject.groups.map(group => 
+        group.id === groupId 
+          ? { ...group, elements: [...group.elements, ...elementIds] }
+          : group
+      ),
+      updatedAt: new Date(),
+    };
+    
+    setCurrentProject(updatedProject);
+    addToHistory(updatedProject);
+  }, [currentProject, addToHistory]);
+
+  const removeFromGroup = useCallback((elementId: string) => {
+    if (!currentProject || !currentProject.groups) return;
+    
+    const updatedProject = {
+      ...currentProject,
+      groups: currentProject.groups.map(group => ({
+        ...group,
+        elements: group.elements.filter(id => id !== elementId)
+      })),
+      updatedAt: new Date(),
+    };
+    
+    setCurrentProject(updatedProject);
+    addToHistory(updatedProject);
+  }, [currentProject, addToHistory]);
+
+  const reorderElementsInGroup = useCallback((groupId: string, elementIds: string[]) => {
+    if (!currentProject || !currentProject.groups) return;
+    
+    const updatedProject = {
+      ...currentProject,
+      groups: currentProject.groups.map(group => 
+        group.id === groupId 
+          ? { ...group, elements: elementIds }
+          : group
+      ),
+      updatedAt: new Date(),
+    };
+    
+    setCurrentProject(updatedProject);
+    addToHistory(updatedProject);
+  }, [currentProject, addToHistory]);
+
   // Set canvas size
   const setCanvasSize = useCallback((width: number, height: number) => {
     if (!currentProject) return;
@@ -666,6 +773,13 @@ export function useMemeCreator(): UseMemeCreatorReturn {
     selectElement,
     duplicateElement,
     reorderElements,
+    
+    createGroup,
+    updateGroup,
+    deleteGroup,
+    addToGroup,
+    removeFromGroup,
+    reorderElementsInGroup,
     
     setCanvasSize,
     setCanvasBackground,

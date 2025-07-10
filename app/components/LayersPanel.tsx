@@ -48,33 +48,38 @@ import {
   RemoveCircleOutline as UngroupIcon,
   DragHandle as DragHandleIcon,
 } from '@mui/icons-material';
-import { CanvasElement } from '../types';
+import { CanvasElement, LayerGroup } from '../types';
 
 interface LayersPanelProps {
   elements: CanvasElement[];
+  groups: LayerGroup[];
   selectedElement?: CanvasElement;
   onSelectElement: (element: CanvasElement) => void;
   onUpdateElement: (element: CanvasElement) => void;
   onDeleteElement: (elementId: string) => void;
   onDuplicateElement: (elementId: string) => void;
   onReorderElements: (elements: CanvasElement[]) => void;
-}
-
-interface LayerGroup {
-  id: string;
-  name: string;
-  expanded: boolean;
-  elements: string[]; // Element IDs
+  onCreateGroup: (elementIds: string[], name?: string) => void;
+  onUpdateGroup: (groupId: string, updates: Partial<LayerGroup>) => void;
+  onDeleteGroup: (groupId: string) => void;
+  onRemoveFromGroup: (elementId: string) => void;
+  onReorderElementsInGroup: (groupId: string, elementIds: string[]) => void;
 }
 
 export function LayersPanel({
   elements,
+  groups,
   selectedElement,
   onSelectElement,
   onUpdateElement,
   onDeleteElement,
   onDuplicateElement,
   onReorderElements,
+  onCreateGroup,
+  onUpdateGroup,
+  onDeleteGroup,
+  onRemoveFromGroup,
+  onReorderElementsInGroup,
 }: LayersPanelProps) {
   const theme = useTheme();
   
@@ -92,11 +97,18 @@ export function LayersPanel({
     currentName: string;
   }>({ open: false, currentName: '' });
   
-  const [groups, setGroups] = useState<LayerGroup[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [selectedElements, setSelectedElements] = useState<Set<string>>(new Set());
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [draggedGroupElement, setDraggedGroupElement] = useState<{
+    groupId: string;
+    elementIndex: number;
+  } | null>(null);
+  const [dragOverGroupElement, setDragOverGroupElement] = useState<{
+    groupId: string;
+    elementIndex: number;
+  } | null>(null);
 
   // Helper functions
   const getElementIcon = (type: string) => {
@@ -213,11 +225,7 @@ export function LayersPanel({
         onUpdateElement(updatedElement);
       }
     } else if (renameDialog.groupId) {
-      setGroups(groups.map(group => 
-        group.id === renameDialog.groupId 
-          ? { ...group, name: renameDialog.currentName }
-          : group
-      ));
+      onUpdateGroup(renameDialog.groupId, { name: renameDialog.currentName });
     }
     setRenameDialog({ open: false, elementId: '', currentName: '' });
   };
@@ -231,7 +239,7 @@ export function LayersPanel({
     if (elementId) {
       onDeleteElement(elementId);
     } else if (groupId) {
-      setGroups(groups.filter(group => group.id !== groupId));
+      onDeleteGroup(groupId);
     }
     handleContextMenuClose();
   };
@@ -309,42 +317,79 @@ export function LayersPanel({
     setDragOverIndex(null);
   };
 
+  // Group element drag and drop handlers
+  const handleGroupElementDragStart = (event: React.DragEvent, groupId: string, elementIndex: number) => {
+    setDraggedGroupElement({ groupId, elementIndex });
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', ''); // Required for Firefox
+  };
+
+  const handleGroupElementDragOver = (event: React.DragEvent, groupId: string, elementIndex: number) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    if (draggedGroupElement && 
+        (draggedGroupElement.groupId !== groupId || draggedGroupElement.elementIndex !== elementIndex)) {
+      setDragOverGroupElement({ groupId, elementIndex });
+    }
+  };
+
+  const handleGroupElementDragEnd = () => {
+    setDraggedGroupElement(null);
+    setDragOverGroupElement(null);
+  };
+
+  const handleGroupElementDrop = (event: React.DragEvent, dropGroupId: string, dropIndex: number) => {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    if (!draggedGroupElement || 
+        (draggedGroupElement.groupId === dropGroupId && draggedGroupElement.elementIndex === dropIndex)) {
+      setDraggedGroupElement(null);
+      setDragOverGroupElement(null);
+      return;
+    }
+
+    const sourceGroup = groups.find(g => g.id === draggedGroupElement.groupId);
+    if (!sourceGroup) return;
+
+    if (draggedGroupElement.groupId === dropGroupId) {
+      // Reordering within the same group
+      const newElementIds = [...sourceGroup.elements];
+      const draggedElementId = newElementIds[draggedGroupElement.elementIndex];
+      
+      // Remove dragged element
+      newElementIds.splice(draggedGroupElement.elementIndex, 1);
+      
+      // Insert at new position
+      const finalIndex = draggedGroupElement.elementIndex < dropIndex ? dropIndex - 1 : dropIndex;
+      newElementIds.splice(finalIndex, 0, draggedElementId);
+      
+      onReorderElementsInGroup(dropGroupId, newElementIds);
+    }
+    
+    setDraggedGroupElement(null);
+    setDragOverGroupElement(null);
+  };
+
   // Group management
   const createGroup = () => {
     const selectedElementIds = Array.from(selectedElements);
     if (selectedElementIds.length === 0) {
       // Create empty group
-      const newGroup: LayerGroup = {
-        id: `group-${Date.now()}`,
-        name: 'New Group',
-        expanded: true,
-        elements: [],
-      };
-      setGroups([...groups, newGroup]);
-      setExpandedGroups(new Set([...expandedGroups, newGroup.id]));
+      onCreateGroup([], 'New Group');
     } else {
       // Create group with selected elements
-      const newGroup: LayerGroup = {
-        id: `group-${Date.now()}`,
-        name: 'New Group',
-        expanded: true,
-        elements: selectedElementIds,
-      };
-      setGroups([...groups, newGroup]);
-      setExpandedGroups(new Set([...expandedGroups, newGroup.id]));
+      onCreateGroup(selectedElementIds, 'New Group');
       setSelectedElements(new Set());
     }
   };
 
   const removeFromGroup = (elementId: string) => {
-    setGroups(groups.map(group => ({
-      ...group,
-      elements: group.elements.filter(id => id !== elementId)
-    })));
+    onRemoveFromGroup(elementId);
   };
 
   const ungroupElements = (groupId: string) => {
-    setGroups(groups.filter(group => group.id !== groupId));
+    onDeleteGroup(groupId);
     handleContextMenuClose();
   };
 
@@ -444,35 +489,45 @@ export function LayersPanel({
                   {/* Group Elements */}
                   {expandedGroups.has(group.id) && (
                     <Box sx={{ backgroundColor: alpha(theme.palette.background.default, 0.5) }}>
-                      {group.elements.map((elementId) => {
+                      {group.elements.map((elementId, elementIndex) => {
                         const element = getElementById(elementId);
                         if (!element) return null;
                         
                         const isSelected = selectedElements.has(element.id);
                         const isLocked = element.data?.locked === true;
                         const isVisible = element.data?.visible !== false;
+                        const isDraggedOver = dragOverGroupElement?.groupId === group.id && 
+                                              dragOverGroupElement?.elementIndex === elementIndex;
                         
                         return (
                           <Box
                             key={element.id}
+                            draggable
+                            onDragStart={(e) => handleGroupElementDragStart(e, group.id, elementIndex)}
+                            onDragOver={(e) => handleGroupElementDragOver(e, group.id, elementIndex)}
+                            onDragEnd={handleGroupElementDragEnd}
+                            onDrop={(e) => handleGroupElementDrop(e, group.id, elementIndex)}
                             onClick={(e) => handleElementClick(element, e)}
                             onContextMenu={(e) => handleContextMenu(e, element.id)}
                             sx={{
                               minHeight: 100,
                               borderBottom: 1,
                               borderColor: 'divider',
-                              backgroundColor: isSelected ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                              backgroundColor: isSelected 
+                                ? alpha(theme.palette.primary.main, 0.1) 
+                                : isDraggedOver 
+                                  ? alpha(theme.palette.secondary.main, 0.1)
+                                  : 'transparent',
                               borderLeft: isSelected ? `3px solid ${theme.palette.primary.main}` : '3px solid transparent',
                               opacity: isVisible ? 1 : 0.5,
                               cursor: 'pointer',
                               p: 2,
-                              pl: 4,
                               '&:hover': {
                                 backgroundColor: alpha(theme.palette.primary.main, 0.05),
                               },
                             }}
                           >
-                            {/* Row 1: Checkbox, Group indicator, Visibility Icon, Lock Icon */}
+                            {/* Row 1: Checkbox, Drag handle, Visibility Icon, Lock Icon */}
                             <Box sx={{ 
                               display: 'flex', 
                               alignItems: 'center', 
@@ -481,7 +536,7 @@ export function LayersPanel({
                               mb: 1,
                               pl: 1  // Consistent padding to align with other rows
                             }}>
-                              {/* Left side: Checkbox + Group indicator */}
+                              {/* Left side: Checkbox + Drag handle */}
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <Checkbox
                                   size="small"
@@ -498,10 +553,12 @@ export function LayersPanel({
                                     alignItems: 'center', 
                                     justifyContent: 'center',
                                     color: 'text.secondary',
-                                    fontSize: '0.75rem'
+                                    cursor: 'grab',
+                                    width: 20,  // Fixed width to align with ungrouped elements
+                                    '&:hover': { color: 'primary.main' }
                                   }}
                                 >
-                                  ┗ {/* Group indent indicator */}
+                                  <DragHandleIcon fontSize="small" />
                                 </Box>
                               </Box>
                               
@@ -582,7 +639,7 @@ export function LayersPanel({
                               </Typography>
                             </Box>
 
-                            {/* Row 3: Remove from group, Chip, Coordinates */}
+                            {/* Row 3: Move buttons, Remove from group, Chip, Coordinates */}
                             <Box sx={{ 
                               display: 'flex', 
                               alignItems: 'center', 
@@ -590,8 +647,46 @@ export function LayersPanel({
                               width: '100%',
                               pl: 1
                             }}>
-                              {/* Left side: Remove from group + Chip */}
+                              {/* Left side: Move buttons + Remove from group + Chip */}
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Tooltip title="Move up in group">
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const newElementIds = [...group.elements];
+                                      if (elementIndex > 0) {
+                                        [newElementIds[elementIndex], newElementIds[elementIndex - 1]] = 
+                                          [newElementIds[elementIndex - 1], newElementIds[elementIndex]];
+                                        onReorderElementsInGroup(group.id, newElementIds);
+                                      }
+                                    }}
+                                    disabled={elementIndex === 0}
+                                    sx={{ p: 0.5 }}
+                                  >
+                                    <MoveUpIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                
+                                <Tooltip title="Move down in group">
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const newElementIds = [...group.elements];
+                                      if (elementIndex < group.elements.length - 1) {
+                                        [newElementIds[elementIndex], newElementIds[elementIndex + 1]] = 
+                                          [newElementIds[elementIndex + 1], newElementIds[elementIndex]];
+                                        onReorderElementsInGroup(group.id, newElementIds);
+                                      }
+                                    }}
+                                    disabled={elementIndex === group.elements.length - 1}
+                                    sx={{ p: 0.5 }}
+                                  >
+                                    <MoveDownIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                
                                 <Tooltip title="Remove from group">
                                   <IconButton
                                     size="small"
@@ -707,6 +802,7 @@ export function LayersPanel({
                         justifyContent: 'center',
                         color: 'text.secondary',
                         cursor: 'grab',
+                        width: 20,  // Fixed width to align with group indicator
                         '&:hover': { color: 'primary.main' }
                       }}
                     >
