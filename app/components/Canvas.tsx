@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import { Box, Paper, Typography } from '@mui/material';
+import { TextEditor } from './TextEditor';
 import { MemeProject, CanvasElement } from '../types';
 import { DEFAULT_CANVAS_SETTINGS } from '../lib/constants';
 
@@ -44,6 +45,9 @@ export function Canvas({
     startX: 0,
     startY: 0,
   });
+  
+  // State to track which text element is being edited (if any)
+  const [editingTextElement, setEditingTextElement] = useState<CanvasElement | null>(null);
 
   const canvasSettings = project?.canvas || DEFAULT_CANVAS_SETTINGS;
   const elements = project?.elements || [];
@@ -220,6 +224,35 @@ export function Canvas({
     }
   };
 
+  const handleDoubleClick = (e: React.MouseEvent, element: CanvasElement) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    console.log('Double click detected on:', element);
+    
+    // Don't allow editing locked elements
+    const isLocked = element.data?.locked === true;
+    if (isLocked) {
+      console.log('Element is locked, not allowing edit');
+      return;
+    }
+    
+    // Only handle text elements
+    if (element.type === 'text') {
+      console.log('Setting text element for editing');
+      setEditingTextElement(element);
+    }
+  };
+  
+  const handleTextUpdate = (updatedElement: CanvasElement) => {
+    onUpdateElement(updatedElement, true); // Add to history
+    setEditingTextElement(null); // Close editor after update
+  };
+  
+  const handleCloseTextEditor = () => {
+    setEditingTextElement(null);
+  };
+
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
@@ -251,36 +284,48 @@ export function Canvas({
     };
 
     if (element.type === 'text') {
+      const isEditing = editingTextElement && editingTextElement.id === element.id;
+      
       return (
         <Box key={element.id}>
           <Box
-            sx={elementStyle}
+            sx={{
+              ...elementStyle,
+              // Hide the original text element while editing
+              opacity: isEditing ? 0 : 1,
+              cursor: 'pointer',
+            }}
             onMouseDown={(e) => handleMouseDown(e, element)}
+            onDoubleClick={(e) => handleDoubleClick(e, element)}
           >
             <Typography
-              sx={{
-                fontSize: element.data.fontSize || 32,
-                fontFamily: element.data.fontFamily || 'Arial',
-                color: element.data.color || '#000000',
-                backgroundColor: element.data.backgroundColor || 'transparent',
-                textAlign: element.data.textAlign || 'center',
-                fontWeight: element.data.fontWeight || 'bold',
-                fontStyle: element.data.fontStyle || 'normal',
-                textShadow: element.data.textShadow || 'none',
-                padding: '4px 8px',
-                border: element.data.borderWidth ? `${element.data.borderWidth}px solid ${element.data.borderColor || '#000000'}` : 'none',
-                borderRadius: element.data.borderRadius || '0px',
-                wordWrap: 'break-word',
-                whiteSpace: 'pre-wrap',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: element.data.textAlign || 'center',
-                userSelect: 'none',
-              }}
-            >
-              {element.data.text || 'Double click to edit'}
-            </Typography>
+                component="div"  /* Change to div instead of p */
+                sx={{
+                  fontSize: element.data.fontSize || 32,
+                  fontFamily: element.data.fontFamily || 'Arial',
+                  color: element.data.color || '#000000',
+                  backgroundColor: element.data.backgroundColor || 'transparent',
+                  textAlign: element.data.textAlign || 'center',
+                  fontWeight: element.data.fontWeight || 'bold',
+                  fontStyle: element.data.fontStyle || 'normal',
+                  textShadow: element.data.textShadow || 'none',
+                  padding: '4px 8px',
+                  border: element.data.borderWidth ? `${element.data.borderWidth}px solid ${element.data.borderColor || '#000000'}` : 'none',
+                  borderRadius: element.data.borderRadius || '0px',
+                  wordWrap: 'break-word',
+                  whiteSpace: 'pre-wrap',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: element.data.textAlign || 'center',
+                  userSelect: 'none',
+                }}
+              >
+                {element.data.text || 'Text'}
+              </Typography>
+              
+              {/* Tooltip moved outside of Typography */}
+              {/* Tooltip removed as requested */}
           </Box>
           
           {/* Resize handles for selected text */}
@@ -413,6 +458,7 @@ export function Canvas({
           <Box
             sx={elementStyle}
             onMouseDown={(e) => handleMouseDown(e, element)}
+            onDoubleClick={(e) => handleDoubleClick(e, element)}
           >
             <img
               src={element.data.src}
@@ -716,6 +762,14 @@ export function Canvas({
         onClick={handleCanvasClick}
         onMouseLeave={handleMouseUp}
       >
+        {/* Text Editor overlay */}
+        {editingTextElement && (
+          <TextEditor
+            element={editingTextElement}
+            onUpdate={handleTextUpdate}
+            onClose={handleCloseTextEditor}
+          />
+        )}
         {elements.length === 0 && (
           <Box
             sx={{
@@ -755,6 +809,15 @@ export function Canvas({
               pointerEvents: 'none',
               zIndex: 1000,
             }}
+          />
+        )}
+
+        {/* Text Editor for double-click editing */}
+        {editingTextElement && (
+          <TextEditor
+            element={editingTextElement}
+            onUpdate={handleTextUpdate}
+            onClose={handleCloseTextEditor}
           />
         )}
       </Box>
