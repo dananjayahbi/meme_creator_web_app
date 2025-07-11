@@ -497,10 +497,10 @@ export function MemeManager({
       <Dialog
         open={open}
         onClose={onClose}
-        maxWidth="md"
+        maxWidth="xl"
         fullWidth
         PaperProps={{
-          sx: { minHeight: '70vh', maxHeight: '85vh' }
+          sx: { minHeight: '90vh', maxHeight: '90vh' }
         }}
       >
         <DialogTitle>
