@@ -177,10 +177,10 @@ export function TemplateManager({
       <Dialog
         open={open}
         onClose={onClose}
-        maxWidth="lg"
+        maxWidth="xl"
         fullWidth
         PaperProps={{
-          sx: { height: '80vh' }
+          sx: { height: '90vh' }
         }}
       >
         <DialogTitle>
@@ -193,7 +193,7 @@ export function TemplateManager({
         </DialogTitle>
 
         <DialogContent>
-          <Stack spacing={3}>
+          <Stack spacing={3} sx={{mt:1 }}>
             {/* Search and Filter Bar */}
             <Stack direction="row" spacing={2} alignItems="center">
               <TextField
@@ -272,7 +272,8 @@ export function TemplateManager({
                 overflow: 'auto', 
                 display: 'grid', 
                 gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
-                gap: 2 
+                gap: 2 ,
+                paddingRight: "10px"
               }}>
                 {filteredTemplates.map((template) => (
                   <Box key={template.id}>

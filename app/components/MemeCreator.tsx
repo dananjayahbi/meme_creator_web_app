@@ -56,6 +56,7 @@ import {
   Menu as MenuIcon,
   Fullscreen as FullscreenIcon,
   FullscreenExit as ExitFullscreenIcon,
+  FolderOpen as FolderOpenIcon,
 } from '@mui/icons-material';
 import { Canvas } from './Canvas';
 import { TemplateManager } from './TemplateManager';
@@ -65,6 +66,7 @@ import { PropertiesPanel } from './PropertiesPanel';
 import { CropDialog } from './CropDialog';
 import { ExportDialog } from './ExportDialog';
 import { ProjectManager } from './ProjectManager';
+import { MemeManager } from './MemeManager';
 import { useMemeCreator } from '../hooks/useMemeCreator';
 import { exportToImage } from '../lib/utils';
 import { CROP_RATIOS } from '../lib/constants';
@@ -84,6 +86,10 @@ interface ExportOptions {
   width: number;
   height: number;
   scale: number;
+  filename: string;
+  backgroundColor: string;
+  includeTransparency: boolean;
+  returnDataUrl?: boolean;
 }
 
 const DRAWER_WIDTH = 300;
@@ -97,6 +103,7 @@ export function MemeCreator() {
     error,
     createNewProject,
     saveProject,
+    loadProject,
     loadTemplate,
     saveAsTemplate,
     saveTemplate,
@@ -124,6 +131,10 @@ export function MemeCreator() {
     redo,
     canUndo,
     canRedo,
+    saveToMyMemes,
+    updateCurrentMeme,
+    isCurrentMemeInCollection,
+    getCurrentMemeStatus,
   } = useMemeCreator();
 
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(true);
@@ -134,6 +145,7 @@ export function MemeCreator() {
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [projectManagerOpen, setProjectManagerOpen] = useState(false);
+  const [memeManagerOpen, setMemeManagerOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -166,14 +178,27 @@ export function MemeCreator() {
     showSnackbar('New meme project created!', 'success');
   };
 
-  const handleExport = async () => {
+  const handleExport = async (exportOptions?: ExportOptions) => {
     if (!canvasRef.current) return;
     
     try {
-      await exportToImage(canvasRef.current, currentProject?.name || 'meme');
-      showSnackbar('Meme exported successfully!', 'success');
+      const options = exportOptions || {
+        filename: currentProject?.name || 'meme',
+        format: 'png',
+        quality: 90,
+        scale: 2,
+        width: currentProject?.canvas?.width || 800,
+        height: currentProject?.canvas?.height || 600,
+        backgroundColor: currentProject?.canvas?.backgroundColor || '#ffffff',
+        includeTransparency: true,
+      };
+      
+      await exportToImage(canvasRef.current, options);
+      showSnackbar(`Meme exported successfully as ${options.filename}.${options.format}!`, 'success');
+      if (exportDialogOpen) setExportDialogOpen(false);
     } catch (error) {
       showSnackbar('Error exporting meme', 'error');
+      console.error('Export error:', error);
     }
   };
 
@@ -244,14 +269,78 @@ export function MemeCreator() {
     setIsFullscreen(!isFullscreen);
   };
 
+  const handleSaveToMyMemes = async () => {
+    if (!currentProject || !canvasRef.current) return;
+    
+    const status = getCurrentMemeStatus();
+    
+    if (status === 'new' || status === 'modified') {
+      try {
+        // Export canvas to image first
+        const canvas = canvasRef.current.querySelector('canvas') || 
+                      canvasRef.current.querySelector('[data-canvas]') ||
+                      canvasRef.current;
+        
+        if (canvas) {
+          // Use exportToImage to get the data URL
+          const dataUrl = await exportToImage(canvasRef.current, {
+            format: 'png',
+            quality: 90,
+            scale: 1,
+            filename: currentProject.id,
+            returnDataUrl: true,
+          });
+          
+          if (dataUrl) {
+            // Save the image data URL to localStorage for now
+            // In a real app, you'd send this to a server
+            localStorage.setItem(`meme_thumbnail_${currentProject.id}`, dataUrl);
+          }
+        }
+        
+        if (!isCurrentMemeInCollection) {
+          // First time saving - generate a default name if needed
+          const name = currentProject.name.startsWith('Untitled') 
+            ? `Meme ${Date.now()}` 
+            : currentProject.name;
+          saveToMyMemes(name);
+          showSnackbar(`Meme "${name}" saved to My Memes!`, 'success');
+        } else {
+          // Update existing meme
+          updateCurrentMeme();
+          showSnackbar(`Meme "${currentProject?.name}" updated!`, 'success');
+        }
+      } catch (error) {
+        console.error('Error saving meme:', error);
+        showSnackbar('Error saving meme', 'error');
+      }
+    }
+  };
+
+  const getSaveButtonText = () => {
+    const status = getCurrentMemeStatus();
+    switch (status) {
+      case 'new': return 'Save to My Memes';
+      case 'saved': return 'Saved';
+      case 'modified': return 'Update';
+      default: return 'Save';
+    }
+  };
+
+  const isSaveButtonDisabled = () => {
+    const status = getCurrentMemeStatus();
+    return status === 'saved' || !currentProject || currentProject.elements.length === 0;
+  };
+
   const speedDialActions = [
     { icon: <AddIcon />, name: 'New Meme', action: handleNewMeme },
-    { icon: <SaveIcon />, name: 'Save', action: handleSave },
+    { icon: <SaveIcon />, name: getSaveButtonText(), action: handleSaveToMyMemes, disabled: isSaveButtonDisabled() },
     { icon: <DownloadIcon />, name: 'Export', action: () => setExportDialogOpen(true) },
+    { icon: <FolderOpenIcon />, name: 'My Memes', action: () => setMemeManagerOpen(true) },
     { icon: <UploadIcon />, name: 'Upload Image', action: () => fileInputRef.current?.click() },
     { icon: <TextIcon />, name: 'Add Text', action: addTextElement },
     { icon: <CropIcon />, name: 'Crop', action: () => setCropDialogOpen(true) },
-  ];
+  ].filter(action => !action.disabled);
 
   const leftPanelTabs = [
     { id: 'tools', label: 'Tools', icon: <PaletteIcon /> },
@@ -322,6 +411,36 @@ export function MemeCreator() {
               }}
             >
               Templates
+            </Button>
+            <Button
+              color="inherit"
+              startIcon={<FolderOpenIcon />}
+              onClick={() => setMemeManagerOpen(true)}
+              sx={{ 
+                '& .MuiButton-startIcon': {
+                  marginRight: 1
+                }
+              }}
+            >
+              My Memes
+            </Button>
+            <Button
+              color="inherit"
+              variant={getCurrentMemeStatus() === 'saved' ? 'outlined' : 'contained'}
+              startIcon={<SaveIcon />}
+              onClick={handleSaveToMyMemes}
+              disabled={isSaveButtonDisabled()}
+              sx={{ 
+                '& .MuiButton-startIcon': {
+                  marginRight: 1
+                },
+                backgroundColor: getCurrentMemeStatus() === 'modified' ? 'warning.main' : undefined,
+                '&:hover': {
+                  backgroundColor: getCurrentMemeStatus() === 'modified' ? 'warning.dark' : undefined,
+                }
+              }}
+            >
+              {getSaveButtonText()}
             </Button>
             <Button
               color="inherit"
@@ -530,8 +649,8 @@ export function MemeCreator() {
               open={true}
               onClose={() => setActiveRightTab('properties')}
               onLoadProject={(project: MemeProject) => {
-                // TODO: Implement project loading
-                console.log('Load project:', project);
+                loadProject(project);
+                showSnackbar(`Project "${project.name}" loaded successfully!`, 'success');
               }}
               onNewProject={createNewProject}
               currentProject={currentProject || undefined}
@@ -570,15 +689,11 @@ export function MemeCreator() {
         }}
         currentWidth={currentProject?.canvas?.width || 800}
         currentHeight={currentProject?.canvas?.height || 600}
-      />
-      
-      <ExportDialog
+      />        <ExportDialog
         open={exportDialogOpen}
         onClose={() => setExportDialogOpen(false)}
         onExport={async (exportOptions: ExportOptions) => {
-          // TODO: Implement export with options
-          console.log('Export options:', exportOptions);
-          await handleExport();
+          await handleExport(exportOptions);
         }}
         canvasWidth={currentProject?.canvas?.width || 800}
         canvasHeight={currentProject?.canvas?.height || 600}
@@ -618,6 +733,17 @@ export function MemeCreator() {
         onUploadTemplate={uploadTemplate}
         onDeleteTemplate={deleteTemplate}
         isLoading={isLoading}
+      />
+
+      {/* Meme Manager */}
+      <MemeManager
+        open={memeManagerOpen}
+        onClose={() => setMemeManagerOpen(false)}
+        onLoadMeme={(project: MemeProject) => {
+          loadProject(project);
+          showSnackbar(`Meme "${project.name}" loaded successfully!`, 'success');
+        }}
+        currentProject={currentProject || undefined}
       />
 
       {/* Error Display */}
